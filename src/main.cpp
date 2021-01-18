@@ -1,7 +1,7 @@
 #include "engine.hpp"
 
 int main() {
-    VcEngine app(800,600);
+    VcEngine app(600,800);
 
     try {
         app.run();

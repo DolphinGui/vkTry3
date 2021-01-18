@@ -27,9 +27,6 @@
 #include <set>
 #include <map>
 
-
-
-
 const std::string MODEL_PATH = "models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/viking_room.png";
 
@@ -53,7 +50,7 @@ public:
     cleanup();
   }
 
-VcEngine(int width, int height) : WIDTH(width), HEIGHT(height){
+VcEngine(int width, int height){
 
 }
 
@@ -101,8 +98,8 @@ private:
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
 
-  const uint32_t WIDTH;
-  const uint32_t HEIGHT;
+  const uint32_t WIDTH = 800;
+  const uint32_t HEIGHT = 600;
 
   GLFWwindow* window;
 
@@ -168,6 +165,8 @@ private:
 
   bool framebufferResized = false;
 
+  static std::chrono::high_resolution_clock::time_point lastTime;
+
   void initWindow() {
     glfwInit();
 
@@ -186,7 +185,6 @@ private:
   void initVulkan() {
     createInstance();
     setupDebugMessenger();
-
     createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
@@ -207,18 +205,32 @@ private:
     loadModel();
     createVertexBuffer();
     createIndexBuffer();
-    createUniformBuffers();
 
+    createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
     createCommandBuffers();
     createSyncObjects();
   }
+  /*static auto startTime = std::chrono::high_resolution_clock::now();
 
+  auto currentTime = std::chrono::high_resolution_clock::now();
+  float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+*/
   void mainLoop() {
+    lastTime = std::chrono::high_resolution_clock::now();
+    static float totalTime = 0.0;
+
     while (!glfwWindowShouldClose(window)) {
       glfwPollEvents();
       drawFrame();
+      auto deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - lastTime).count();
+      totalTime += deltaTime;
+      lastTime = std::chrono::high_resolution_clock::now();
+      if(totalTime > 1){
+        std::cout << 1/deltaTime << std::endl;
+        totalTime = totalTime - 1;
+      }
     }
 
     vkDeviceWaitIdle(device);
@@ -315,6 +327,7 @@ private:
     createColorResources();
     createDepthResources();
     createFramebuffers();
+
     createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
@@ -1197,11 +1210,7 @@ private:
             uniformBuffersMemory.resize(swapChainImages.size());
 
             for (size_t i = 0; i < swapChainImages.size(); i++) {
-              createBuffer(bufferSize,
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                uniformBuffers[i],
-                uniformBuffersMemory[i]);
+              createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBuffers[i], uniformBuffersMemory[i]);
             }
           }
 
@@ -1728,3 +1737,4 @@ private:
             return VK_FALSE;
           }
         };
+std::chrono::high_resolution_clock::time_point VcEngine::lastTime = std::chrono::high_resolution_clock::now();;
