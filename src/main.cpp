@@ -1,14 +1,14 @@
 #include "engine.hpp"
 
 int main() {
-    VcEngine app(600,800);
+  VcEngine app(800,600, "vkTest");
 
-    try {
-        app.run();
-    } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-        return EXIT_FAILURE;
-    }
+  try {
+    app.run();
+  } catch (const std::exception& e) {
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
+  }
 
-    return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }
