@@ -1,7 +1,7 @@
-#include "engine.hpp"
+#include "VCEngine.hpp"
 
 int main() {
-  VcEngine app(800,600, "vkTest");
+  vcc::VCEngine app(800,600, "vkTest");
 
   try {
     app.run();
