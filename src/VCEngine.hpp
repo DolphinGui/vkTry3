@@ -17,6 +17,8 @@ const bool enableValidationLayers = true;
 #endif
 
 
+
+namespace vcc{
 struct QueueFamilyIndices {
   std::optional<uint32_t> graphicsFamily;
   std::optional<uint32_t> presentFamily;
@@ -25,7 +27,7 @@ struct QueueFamilyIndices {
     return graphicsFamily.has_value() && presentFamily.has_value();
   }
 };
-namespace vcc{
+
 class VCEngine{
   friend class Setup;
 public:
@@ -72,9 +74,9 @@ private:
   bool checkValidationLayerSupport();
   void initInstance();
   vk::Result CreateDebugUtilsMessengerEXT(
-    vk::Instance instance,
-    const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-    const vk::AllocationCallbacks* pAllocator,
+    vk::Instance instance, 
+    const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
+    const vk::AllocationCallbacks* pAllocator, 
     vk::DebugUtilsMessengerEXT* pDebugMessenger);
   void pickPhysicalDevice();
   int deviceSuitability(vk::PhysicalDevice device);
@@ -82,11 +84,13 @@ private:
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   void initGLFW();
 
+  void populateDebugMessengerCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT& createInfo);
+
   static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
     auto app = reinterpret_cast<VCEngine*>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
   }
-  void populateDebugMessengerCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT& createInfo);
+  
   static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
     vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     vk::DebugUtilsMessageTypeFlagsEXT messageType,

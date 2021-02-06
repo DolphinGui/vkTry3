@@ -1,3 +1,5 @@
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -31,8 +33,6 @@
 const std::string MODEL_PATH = "models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/viking_room.png";
 
-#pragma once
-
 #include "Vertex.hpp"
 
 #include "UniformBufferObject.hpp"
@@ -47,6 +47,7 @@ struct SwapChainSupportDetails {
   std::vector<VkPresentModeKHR> presentModes;
 };
 
+using namespace vcc;
 
 void VCEngine::run(){};
 
@@ -62,15 +63,15 @@ VCEngine::VCEngine(
   initInstance();
 
   if (enableValidationLayers){
-    VkDebugUtilsMessengerCreateInfoEXT createInfo;
+    vk::DebugUtilsMessengerCreateInfoEXT createInfo;
     populateDebugMessengerCreateInfo(createInfo);
 
-    if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+    if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != vk::Result::eSuccess) {
         throw std::runtime_error("failed to set up debug messenger!");
     }
   }
-
-  if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+  auto surf = VkSurfaceKHR(surface);
+  if (glfwCreateWindowSurface(VkInstance(instance), window, nullptr, &surf) != VK_SUCCESS) {
       throw std::runtime_error("failed to create window surface!");
   }
   pickPhysicalDevice();
@@ -108,7 +109,7 @@ void VCEngine::initGLFW(){
 void VCEngine::createLogicalDevice() {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
     float queuePriority = 1.0f;
@@ -121,11 +122,12 @@ void VCEngine::createLogicalDevice() {
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
-    VkPhysicalDeviceFeatures deviceFeatures{};
+    vk::PhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
 
-    VkDeviceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    vk::DeviceCreateInfo createInfo{};
+    createInfo.sType =     createInfo.sType = vk::StructureType::eDeviceCreateInfo;
+;
 
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
@@ -141,16 +143,13 @@ void VCEngine::createLogicalDevice() {
     } else {
         createInfo.enabledLayerCount = 0;
     }
-
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
-    }
+    physicalDevice.createDevice(&createInfo, nullptr, &device);
 
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
 }
 
-QueueFamilyIndices VCEngine::findQueueFamilies(VkPhysicalDevice device){
+QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device){
   QueueFamilyIndices indices;
 
   uint32_t queueFamilyCount = 0;
@@ -205,15 +204,15 @@ void VCEngine::pickPhysicalDevice() {
   }
 }
 
-int VCEngine::deviceSuitability(VkPhysicalDevice device) {
-  VkPhysicalDeviceProperties deviceProperties;
-  VkPhysicalDeviceFeatures deviceFeatures;
-  vkGetPhysicalDeviceProperties(device, &deviceProperties);
-  vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+int VCEngine::deviceSuitability(vk::PhysicalDevice device) {
+  vk::PhysicalDeviceProperties deviceProperties;
+  vk::PhysicalDeviceFeatures deviceFeatures;
+  device.getProperties(&deviceProperties);
+  device.getFeatures(&deviceFeatures);
 
   int score = 0;
 
-  if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+  if (deviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
       score += 1000;
   }
 
@@ -232,54 +231,58 @@ void VCEngine::initInstance(){
       throw std::runtime_error("validation layers requested, but not available!");
   }
 
-  VkApplicationInfo appInfo{};
-  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+  vk::ApplicationInfo appInfo{};
+  appInfo.sType = vk::StructureType::eApplicationInfo;
   appInfo.pApplicationName = APPNAME;
   appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.pEngineName = "No Engine";
   appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.apiVersion = VK_API_VERSION_1_0;
 
-  VkInstanceCreateInfo createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  vk::InstanceCreateInfo createInfo{};
+  createInfo.sType = vk::StructureType::eInstanceCreateInfo;
   createInfo.pApplicationInfo = &appInfo;
 
   auto extensions = getRequiredExtensions();
   createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
   createInfo.ppEnabledExtensionNames = extensions.data();
 
-  VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+  vk::DebugUtilsMessengerCreateInfoEXT debugCreateInfo;
   if (enableValidationLayers) {
       createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
       createInfo.ppEnabledLayerNames = validationLayers.data();
 
       populateDebugMessengerCreateInfo(debugCreateInfo);
-      createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
+      createInfo.pNext = (vk::DebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
   } else {
       createInfo.enabledLayerCount = 0;
 
       createInfo.pNext = nullptr;
   }
-
-  if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create instance!");
-  }
+  vk::createInstance(&createInfo, nullptr, &instance);
 }
 
-void VCEngine::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
-    createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+void VCEngine::populateDebugMessengerCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT& createInfo) {
+    createInfo.sType = vk::StructureType::eDebugUtilsMessengerCreateInfoEXT;
+    createInfo.messageSeverity =  vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose 
+    | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
+    | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+    createInfo.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | 
+    vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | 
+    vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
     createInfo.pfnUserCallback = debugCallback;
 }
 
-VkResult VCEngine::CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
+vk::Result VCEngine::CreateDebugUtilsMessengerEXT(vk::Instance instance, 
+const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
+const vk::AllocationCallbacks* pAllocator, 
+vk::DebugUtilsMessengerEXT* pDebugMessenger) {
   auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
   if (func != nullptr) {
-    return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+    auto create = VkDebugUtilsMessengerCreateInfoEXT(pCreateInfo);
+    return func(instance, create*, pAllocator, pDebugMessenger);
   } else {
-    return VK_ERROR_EXTENSION_NOT_PRESENT;
+    return vk::Result::eErrorExtensionNotPresent;
   }
 }
 
@@ -292,10 +295,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 bool VCEngine::checkValidationLayerSupport() {
     uint32_t layerCount;
-    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+    vk::enumerateInstanceLayerProperties(&layerCount, nullptr);
 
-    std::vector<VkLayerProperties> availableLayers(layerCount);
-    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+    std::vector<vk::LayerProperties> availableLayers(layerCount);
+    vk::enumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
     for (const char* layerName : validationLayers) {
         bool layerFound = false;
