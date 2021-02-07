@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include <vulkan/vulkan.hpp>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -28,7 +29,8 @@ Setup::Setup(VCEngine* engine): env(engine){
   vk::CommandPoolCreateInfo poolInfo{};
   poolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
   poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-  env->device.createCommandPool(&poolInfo, nullptr, &commandPool);
+  if(env->device.createCommandPool(&poolInfo, nullptr, &commandPool)!=vk::Result::eSuccess)
+    throw std::runtime_error("failed to create command pool");
 
   vk::Format colorFormat = swapChainImageFormat;
 
@@ -37,12 +39,12 @@ Setup::Setup(VCEngine* engine): env(engine){
   1,
   env->msaaSamples,
   colorFormat,
-  VK_IMAGE_TILING_OPTIMAL,
-  VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+  vk::ImageTiling::eOptimal,
+  vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
+  vk::MemoryPropertyFlagBits::eDeviceLocal,
   env->device,
   env->physicalDevice,
-  VK_IMAGE_ASPECT_COLOR_BIT
+  vk::ImageAspectFlagBits::eColor
   );
   createDepthResources();
   createFramebuffers();
@@ -127,7 +129,8 @@ void Setup::createRenderPass() {
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
-    env->device.createRenderPass(&renderPassInfo, nullptr, &renderPass);
+    if(env->device.createRenderPass(&renderPassInfo, nullptr, &renderPass)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to create render pass");
 }
 
 vk::Format Setup::findSupportedFormat(
@@ -170,7 +173,8 @@ void Setup::createDescriptorSetLayout() {
     layoutInfo.sType = vk::StructureType::eDescriptorSetLayoutCreateInfo;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
-    env->device.createDescriptorSetLayout(&layoutInfo, nullptr, &descriptorSetLayout);
+    if(env->device.createDescriptorSetLayout(&layoutInfo, nullptr, &descriptorSetLayout)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to create render pass");
 }
 
 vk::ImageView Setup::createImageView(
@@ -191,7 +195,8 @@ vk::ImageView Setup::createImageView(
     viewInfo.subresourceRange.layerCount = 1;
 
     vk::ImageView imageView;
-    env->device.createImageView(&viewInfo, nullptr, &imageView);
+    if(env->device.createImageView(&viewInfo, nullptr, &imageView)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to create render pass");
 
     return imageView;
 }
@@ -296,7 +301,11 @@ void Setup::createGraphicsPipeline() {
     pipelineLayoutInfo.sType = vk::StructureType::ePipelineLayoutCreateInfo;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-    env->device.createPipelineLayout(&pipelineLayoutInfo, nullptr, &pipelineLayout);
+    if(env->device.createPipelineLayout(
+        &pipelineLayoutInfo, 
+        nullptr, 
+        &pipelineLayout)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to create render pass");
     
     vk::GraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = vk::StructureType::eGraphicsPipelineCreateInfo;
@@ -313,7 +322,12 @@ void Setup::createGraphicsPipeline() {
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = vk::Pipeline(nullptr);
-    env->device.createGraphicsPipelines(vk::PipelineCache(nullptr), 1, &pipelineInfo, nullptr, &graphicsPipeline);
+    if(env->device.createGraphicsPipelines(
+        vk::PipelineCache(nullptr), 
+        1, 
+        &pipelineInfo, nullptr, 
+        &graphicsPipeline)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to create render pass");
     
 
     vkDestroyShaderModule(env->device, fragShaderModule, nullptr);
@@ -327,7 +341,10 @@ vk::ShaderModule Setup::createShaderModule(const std::vector<char>& code) {
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     vk::ShaderModule shaderModule;
-    env->device.createShaderModule(&createInfo, nullptr, &shaderModule);
+    if(env->device.createShaderModule(&createInfo, 
+    nullptr, 
+    &shaderModule)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to create render pass");;
 
     return shaderModule;
 }

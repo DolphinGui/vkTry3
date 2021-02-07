@@ -1,3 +1,5 @@
+#ifndef VCENNGINE_H_INCLUDE
+#define VCENNGINE_H_INCLUDE
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 
@@ -6,9 +8,8 @@
 #include <iostream>
 #include <optional>
 
-#include "Setup.hpp"
-#ifndef VCENNGINE_H_INCLUDE
-#define VCENNGINE_H_INCLUDE
+//#include "Setup.hpp"
+
 
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
@@ -67,7 +68,6 @@ private:
   vk::PhysicalDevice physicalDevice;
   vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
 
-
   vk::Queue graphicsQueue;
   vk::Queue presentQueue;
 
@@ -91,10 +91,10 @@ private:
     app->framebufferResized = true;
   }
   
-  static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
-    vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    vk::DebugUtilsMessageTypeFlagsEXT messageType,
-    const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+  static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData)
     {
       std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;

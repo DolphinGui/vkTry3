@@ -1,5 +1,7 @@
+
+#define VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -8,12 +10,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
-
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
 
 #include <iostream>
 #include <fstream>
@@ -76,13 +72,21 @@ VCEngine::VCEngine(
   }
   pickPhysicalDevice();
   createLogicalDevice();
+
+  vk::DynamicLoader dl;
+  PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = 
+  dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+  VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
+  VULKAN_HPP_DEFAULT_DISPATCHER.init(instance);
+  VULKAN_HPP_DEFAULT_DISPATCHER.init(device);
 }
 
 VCEngine::~VCEngine(){
   vkDestroyDevice(device, nullptr);
 
   if (enableValidationLayers) {
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) instance.getProcAddr("vkDestroyDebugUtilsMessengerEXT");
     if (func != nullptr) {
       func(instance, debugMessenger, nullptr);
     }
@@ -143,10 +147,12 @@ void VCEngine::createLogicalDevice() {
     } else {
         createInfo.enabledLayerCount = 0;
     }
-    physicalDevice.createDevice(&createInfo, nullptr, &device);
-
-    vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
-    vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
+    if(physicalDevice.createDevice(&createInfo, nullptr, &device) != vk::Result::eSuccess){
+      throw std::runtime_error("failed to create device!");
+    }
+    
+    device.getQueue(indices.graphicsFamily.value(), 0, &graphicsQueue);
+    device.getQueue(indices.presentFamily.value(), 0, &presentQueue);
 }
 
 QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device){
@@ -259,7 +265,8 @@ void VCEngine::initInstance(){
 
       createInfo.pNext = nullptr;
   }
-  vk::createInstance(&createInfo, nullptr, &instance);
+  if(vk::createInstance(&createInfo, nullptr, &instance) != vk::Result::eSuccess)
+    throw std::runtime_error("failed to create image!");
 }
 
 void VCEngine::populateDebugMessengerCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT& createInfo) {
@@ -277,13 +284,8 @@ vk::Result VCEngine::CreateDebugUtilsMessengerEXT(vk::Instance instance,
 const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
 const vk::AllocationCallbacks* pAllocator, 
 vk::DebugUtilsMessengerEXT* pDebugMessenger) {
-  auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-  if (func != nullptr) {
-    auto create = VkDebugUtilsMessengerCreateInfoEXT(pCreateInfo);
-    return func(instance, create*, pAllocator, pDebugMessenger);
-  } else {
-    return vk::Result::eErrorExtensionNotPresent;
-  }
+  
+  return instance.createDebugUtilsMessengerEXT(pCreateInfo, pAllocator, pDebugMessenger);
 }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
@@ -294,26 +296,28 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 }
 
 bool VCEngine::checkValidationLayerSupport() {
-    uint32_t layerCount;
-    vk::enumerateInstanceLayerProperties(&layerCount, nullptr);
+  uint32_t layerCount;
+  if(vk::enumerateInstanceLayerProperties(&layerCount, nullptr)!=vk::Result::eSuccess)
+    throw std::runtime_error("failed to count layer properties");
 
-    std::vector<vk::LayerProperties> availableLayers(layerCount);
-    vk::enumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+  std::vector<vk::LayerProperties> availableLayers(layerCount);
+  if(vk::enumerateInstanceLayerProperties(&layerCount, availableLayers.data())!=vk::Result::eSuccess)
+    throw std::runtime_error("failed to count layer properties");
 
-    for (const char* layerName : validationLayers) {
-        bool layerFound = false;
+  for (const char* layerName : validationLayers) {
+      bool layerFound = false;
 
-        for (const auto& layerProperties : availableLayers) {
-            if (strcmp(layerName, layerProperties.layerName) == 0) {
-                layerFound = true;
-                break;
-            }
-        }
+      for (const auto& layerProperties : availableLayers) {
+          if (strcmp(layerName, layerProperties.layerName) == 0) {
+              layerFound = true;
+              break;
+          }
+      }
 
-        if (!layerFound) {
-            return false;
-        }
-    }
+      if (!layerFound) {
+          return false;
+      }
+  }
 
     return true;
 }
