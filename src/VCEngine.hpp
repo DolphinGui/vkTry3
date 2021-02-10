@@ -63,6 +63,7 @@ private:
   vk::Instance instance;
   vk::DebugUtilsMessengerEXT debugMessenger;
   vk::SurfaceKHR surface;
+  vk::DispatchLoaderDynamic dload;
 
   vk::Device device;
   vk::PhysicalDevice physicalDevice;

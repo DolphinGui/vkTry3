@@ -1,7 +1,5 @@
-
-#define VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -25,6 +23,7 @@
 #include <set>
 #include <map>
 #include <memory>
+#include <cassert>
 
 const std::string MODEL_PATH = "models/viking_room.obj";
 const std::string TEXTURE_PATH = "textures/viking_room.png";
@@ -57,7 +56,10 @@ VCEngine::VCEngine(
   {
   initGLFW();
   initInstance();
-
+  vk::DynamicLoader dl;
+  PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = 
+  dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+  dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr);
   if (enableValidationLayers){
     vk::DebugUtilsMessengerCreateInfoEXT createInfo;
     populateDebugMessengerCreateInfo(createInfo);
@@ -66,19 +68,17 @@ VCEngine::VCEngine(
         throw std::runtime_error("failed to set up debug messenger!");
     }
   }
-  auto surf = VkSurfaceKHR(surface);
+  VkSurfaceKHR surf;
   if (glfwCreateWindowSurface(VkInstance(instance), window, nullptr, &surf) != VK_SUCCESS) {
       throw std::runtime_error("failed to create window surface!");
   }
+  
+  surface = vk::SurfaceKHR(surf);
+
   pickPhysicalDevice();
   createLogicalDevice();
-
-  vk::DynamicLoader dl;
-  PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = 
-  dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
-  VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-  VULKAN_HPP_DEFAULT_DISPATCHER.init(instance);
-  VULKAN_HPP_DEFAULT_DISPATCHER.init(device);
+    
+  dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr, device);
 }
 
 VCEngine::~VCEngine(){
@@ -148,7 +148,7 @@ void VCEngine::createLogicalDevice() {
         createInfo.enabledLayerCount = 0;
     }
     if(physicalDevice.createDevice(&createInfo, nullptr, &device) != vk::Result::eSuccess){
-      throw std::runtime_error("failed to create device!");
+      throw std::runtime_error("failed to create device");
     }
     
     device.getQueue(indices.graphicsFamily.value(), 0, &graphicsQueue);
@@ -169,9 +169,10 @@ QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device){
       if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
           indices.graphicsFamily = i;
       }
-
+      
       VkBool32 presentSupport = false;
-      vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+      if(device.getSurfaceSupportKHR(i, surface, &presentSupport)!=vk::Result::eSuccess)
+        throw std::runtime_error("failed to get surface support details");
 
       if (presentSupport) {
           indices.presentFamily = i;
@@ -285,7 +286,7 @@ const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo,
 const vk::AllocationCallbacks* pAllocator, 
 vk::DebugUtilsMessengerEXT* pDebugMessenger) {
   
-  return instance.createDebugUtilsMessengerEXT(pCreateInfo, pAllocator, pDebugMessenger);
+  return instance.createDebugUtilsMessengerEXT(pCreateInfo, pAllocator, pDebugMessenger, dload);
 }
 
 void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
