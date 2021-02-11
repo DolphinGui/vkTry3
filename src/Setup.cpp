@@ -1,13 +1,16 @@
+#include <bits/stdint-uintn.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <array>
+#include <cstdint>
 
 #include "Setup.hpp"
 #include "Vertex.hpp"
 #include "Image.hpp"
+#include "VCEngine.hpp"
 
 using namespace vcc;
 Setup::Setup(VCEngine* engine): env(engine){
@@ -33,78 +36,128 @@ Setup::Setup(VCEngine* engine): env(engine){
     throw std::runtime_error("failed to create command pool");
 
   vk::Format colorFormat = swapChainImageFormat;
-
-  color = Image(swapChainExtent.width,
-  swapChainExtent.height,
-  1,
-  env->msaaSamples,
-  colorFormat,
-  vk::ImageTiling::eOptimal,
-  vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
-  vk::MemoryPropertyFlagBits::eDeviceLocal,
-  env->device,
-  env->physicalDevice,
-  vk::ImageAspectFlagBits::eColor
+  color = Image(
+      swapChainExtent.width,
+      swapChainExtent.height,
+      1,
+      env->msaaSamples,
+      colorFormat,
+      vk::ImageTiling::eOptimal,
+      vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
+      vk::MemoryPropertyFlagBits::eDeviceLocal,
+      &env->device,
+      &env->physicalDevice,
+      vk::ImageAspectFlagBits::eColor
   );
-  createDepthResources();
+
+  depth = Image(
+      swapChainExtent.width,
+      swapChainExtent.height,
+      1,
+      env->msaaSamples,
+      findSupportedFormat(
+        {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
+        vk::ImageTiling::eOptimal, 
+        vk::FormatFeatureFlagBits::eDepthStencilAttachment),
+      vk::ImageTiling::eOptimal,
+      vk::ImageUsageFlagBits::eDepthStencilAttachment,
+      vk::MemoryPropertyFlagBits::eDeviceLocal,
+      &env->device,
+      &env->physicalDevice,
+      vk::ImageAspectFlagBits::eDepth
+  );
   createFramebuffers();
 }
 
+Setup::~Setup(){
+    
+
+    for(auto fbuffer : swapChainFramebuffers){
+        env->device.destroyFramebuffer(fbuffer);
+    }
+    env->device.destroyPipeline(graphicsPipeline);
+    env->device.destroyPipelineLayout(pipelineLayout);
+    env->device.destroyRenderPass(renderPass);
+    for(auto view : swapChainImageViews){
+        env->device.destroyImageView(view);
+    }
+    env->device.destroySwapchainKHR(swapChain);
+    for(auto image : swapChainImages){
+        env->device.destroyImage(image);
+    }
+    env->device.destroyDescriptorSetLayout(descriptorSetLayout);
+    env->device.destroyCommandPool(commandPool);
+}
+
 void Setup::createRenderPass() {
-    vk::AttachmentDescription colorAttachment{};
-    colorAttachment.format = swapChainImageFormat;
-    colorAttachment.samples = env->msaaSamples;
-    colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-    colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
-    colorAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    colorAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
-    colorAttachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
-
-    vk::AttachmentDescription depthAttachment{};
-    depthAttachment.format = findSupportedFormat(
-        {vk::Format::eD32Sfloat, 
-        vk::Format::eD32SfloatS8Uint, 
-        vk::Format::eD24UnormS8Uint},
-        vk::ImageTiling::eOptimal,
-        vk::FormatFeatureFlagBits::eDepthStencilAttachment
+    vk::AttachmentDescription colorAttachment(
+        {},
+        swapChainImageFormat,
+        env->msaaSamples,
+        vk::AttachmentLoadOp::eClear,
+        vk::AttachmentStoreOp::eStore,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eColorAttachmentOptimal
     );
-    depthAttachment.samples = env->msaaSamples;
-    depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
-    depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
-    depthAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    depthAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
-    depthAttachment.finalLayout = vk::ImageLayout::eColorAttachmentOptimal;
 
-    vk::AttachmentDescription colorAttachmentResolve{};
-    colorAttachmentResolve.format = swapChainImageFormat;
-    colorAttachmentResolve.samples = vk::SampleCountFlagBits::e1;
-    colorAttachmentResolve.loadOp = vk::AttachmentLoadOp::eDontCare;
-    colorAttachmentResolve.storeOp = vk::AttachmentStoreOp::eStore;
-    colorAttachmentResolve.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
-    colorAttachmentResolve.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
-    colorAttachmentResolve.initialLayout = vk::ImageLayout::eUndefined;
-    colorAttachmentResolve.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+    vk::AttachmentDescription depthAttachment(
+        {},
+        findSupportedFormat(
+            {
+                vk::Format::eD32Sfloat, 
+                vk::Format::eD32SfloatS8Uint, 
+                vk::Format::eD24UnormS8Uint
+            },
+            vk::ImageTiling::eOptimal,
+            vk::FormatFeatureFlagBits::eDepthStencilAttachment
+        ),
+        env->msaaSamples,
+        vk::AttachmentLoadOp::eClear,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eDepthStencilAttachmentOptimal
+    );
 
-    vk::AttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
+    vk::AttachmentDescription colorAttachmentResolve(
+        {},
+        swapChainImageFormat,
+        vk::SampleCountFlagBits::e1,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eStore,
+        vk::AttachmentLoadOp::eDontCare,
+        vk::AttachmentStoreOp::eDontCare,
+        vk::ImageLayout::eUndefined,
+        vk::ImageLayout::ePresentSrcKHR
+    );
 
-    vk::AttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
+    vk::AttachmentReference colorAttachmentRef(
+        0,
+        vk::ImageLayout::eColorAttachmentOptimal
+    );
 
-    vk::AttachmentReference colorAttachmentResolveRef{};
-    colorAttachmentResolveRef.attachment = 2;
-    colorAttachmentResolveRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
+    vk::AttachmentReference depthAttachmentRef(
+        1,
+        vk::ImageLayout::eDepthStencilAttachmentOptimal
+    );
 
-    vk::SubpassDescription subpass{};
-    subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
-    subpass.pResolveAttachments = &colorAttachmentResolveRef;
+    vk::AttachmentReference colorAttachmentResolveRef(
+        2,
+        vk::ImageLayout::eColorAttachmentOptimal
+    );
+
+    vk::SubpassDescription subpass(
+        {},
+        vk::PipelineBindPoint::eGraphics,
+        {},{},
+        1,
+        &colorAttachmentRef,
+        &colorAttachmentResolveRef,
+        &depthAttachmentRef
+    );
 
     vk::SubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -347,4 +400,113 @@ vk::ShaderModule Setup::createShaderModule(const std::vector<char>& code) {
         throw std::runtime_error("failed to create render pass");;
 
     return shaderModule;
+}
+
+void Setup::createFramebuffers(){
+    swapChainFramebuffers.resize(swapChainImageViews.size());
+    for (size_t i = 0; i < swapChainImageViews.size(); i++) {
+        const vk::ImageView attachments[] = {
+            color.view.get(),
+            depth.view.get(),
+            swapChainImageViews[i]
+        };
+        const vk::FramebufferCreateInfo framebufferInfo(
+            {},
+            renderPass,
+            static_cast<uint32_t>(3),
+            attachments,
+            swapChainExtent.width,
+            swapChainExtent.height,
+            1
+        );
+        if (env->device.createFramebuffer(&framebufferInfo, nullptr, &swapChainFramebuffers[i]) != vk::Result::eSuccess) {
+            throw std::runtime_error("failed to create framebuffer!");
+        }
+    }
+}
+
+void Setup::createSwapChain() {
+    std::vector<vk::SurfaceFormatKHR> formats = 
+    env->physicalDevice.getSurfaceFormatsKHR(env->surface, env->dload);
+    vk::SurfaceFormatKHR surfaceFormat;
+    for (const auto& availableFormat : formats) {
+        if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && 
+        availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
+            surfaceFormat = availableFormat;
+        }
+    }
+    surfaceFormat = formats[0];
+
+    std::vector<vk::PresentModeKHR> presentModes = 
+    env->physicalDevice.getSurfacePresentModesKHR(env->surface, env->dload);
+    vk::PresentModeKHR presentMode;
+    for (const auto& availablePresentMode : presentModes) {
+        if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
+            presentMode= availablePresentMode;
+        }
+    }
+    presentMode = vk::PresentModeKHR::eFifo;
+
+    vk::SurfaceCapabilitiesKHR capabilities = 
+    env->physicalDevice.getSurfaceCapabilitiesKHR(env->surface, env->dload);
+
+    vk::Extent2D extent;
+    if (capabilities.currentExtent.width != UINT32_MAX) {
+        extent = capabilities.currentExtent;
+    } else {
+        int width, height;
+        glfwGetFramebufferSize(env->window, &width, &height);
+
+        vk::Extent2D actualExtent(
+            static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height)
+        );
+
+        actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
+        actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
+
+        extent = actualExtent;
+    }
+
+    uint32_t imageCount = capabilities.minImageCount + 1;
+    if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
+        imageCount = capabilities.maxImageCount;
+    }
+
+    QueueFamilyIndices indices = env->findQueueFamilies(env->physicalDevice);
+    uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+    vk::SharingMode share;
+    uint32_t queueFamilyIndexCount;
+    uint32_t* queueFamilyIndixes;
+    if (indices.graphicsFamily != indices.presentFamily) {
+        share = vk::SharingMode::eConcurrent;
+        queueFamilyIndexCount = 2;
+        queueFamilyIndixes = queueFamilyIndices;
+    } else {
+        share = vk::SharingMode::eExclusive;
+    }
+    vk::SwapchainCreateInfoKHR createInfo(
+        {},
+        env->surface,
+        imageCount,
+        surfaceFormat.format,
+        surfaceFormat.colorSpace,
+        extent,
+        1,
+        vk::ImageUsageFlagBits::eColorAttachment,
+        share,
+        queueFamilyIndexCount,
+        queueFamilyIndixes,
+        capabilities.currentTransform,
+        vk::CompositeAlphaFlagBitsKHR::eOpaque,
+        presentMode,
+        VK_TRUE
+    );
+    
+    if (env->device.createSwapchainKHR(&createInfo, nullptr, &swapChain) != vk::Result::eSuccess) {
+        throw std::runtime_error("failed to create swap chain!");
+    }
+    swapChainImages = env->device.getSwapchainImagesKHR(swapChain, env->dload);
+    swapChainImageFormat = surfaceFormat.format;
+    swapChainExtent = extent;
 }

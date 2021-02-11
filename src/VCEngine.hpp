@@ -8,9 +8,6 @@
 #include <iostream>
 #include <optional>
 
-//#include "Setup.hpp"
-
-
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -20,6 +17,7 @@ const bool enableValidationLayers = true;
 
 
 namespace vcc{
+
 struct QueueFamilyIndices {
   std::optional<uint32_t> graphicsFamily;
   std::optional<uint32_t> presentFamily;
@@ -28,7 +26,7 @@ struct QueueFamilyIndices {
     return graphicsFamily.has_value() && presentFamily.has_value();
   }
 };
-
+class Setup;
 class VCEngine{
   friend class Setup;
 public:
@@ -67,7 +65,7 @@ private:
 
   vk::Device device;
   vk::PhysicalDevice physicalDevice;
-  vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e1;
+  vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e2;
 
   vk::Queue graphicsQueue;
   vk::Queue presentQueue;

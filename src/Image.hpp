@@ -2,89 +2,87 @@
 #define IMAGE_H_INCLUDE
 
 #include <GLFW/glfw3.h>
+#include <stdexcept>
 #include <vulkan/vulkan.hpp>
-
-#include "VCEngine.hpp"
 
 namespace vcc{
 class Image{
 public:
-  vk::Image image;
-  vk::DeviceMemory mem;
-  vk::ImageView view = nullptr;
-  vk::Device dev;
+  vk::UniqueImage image;
+  vk::UniqueDeviceMemory mem;
+  vk::UniqueImageView view;
+  vk::Device* dev;
   Image(){};
   Image(
-  uint32_t width,
-  uint32_t height,
-  uint32_t mipLevels,
-  vk::SampleCountFlagBits numSamples,
-  vk::Format format,
-  vk::ImageTiling tiling,
-  vk::ImageUsageFlags usage,
-  vk::MemoryPropertyFlags properties,
-  vk::Device device,
-  vk::PhysicalDevice physicalDevice,
-  vk::ImageAspectFlags viewAspectFlags = {}):
-  dev(device)
+    uint32_t width,
+    uint32_t height,
+    uint32_t mipLevels,
+    vk::SampleCountFlagBits numSamples,
+    vk::Format format,
+    vk::ImageTiling tiling,
+    vk::ImageUsageFlags usage,
+    vk::MemoryPropertyFlags properties,
+    vk::Device* device,
+    vk::PhysicalDevice* physicalDevice,
+    vk::ImageAspectFlags viewAspectFlags = {}):
+    dev(device)
   {
-    vk::ImageCreateInfo imageInfo{};
-    imageInfo.sType = vk::StructureType::eImageCreateInfo;
-    imageInfo.imageType = vk::ImageType::e2D;
-    imageInfo.extent.width = width;
-    imageInfo.extent.height = height;
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = mipLevels;
-    imageInfo.arrayLayers = 1;
-    imageInfo.format = format;
-    imageInfo.tiling = tiling;
-    imageInfo.initialLayout = vk::ImageLayout::eUndefined;
-    imageInfo.usage = usage;
-    imageInfo.samples = numSamples;
-    imageInfo.sharingMode = vk::SharingMode::eExclusive;
+    const vk::ImageCreateInfo imageInfo(
+      {},
+      vk::ImageType::e2D,
+      format,
+      vk::Extent3D(width, height, 1),
+      mipLevels,
+      1,
+      numSamples,
+      tiling,
+      usage,
+      vk::SharingMode::eExclusive,
+      {}, {}, 
+      vk::ImageLayout::eUndefined);
 
-    device.createImage(&imageInfo, nullptr, &image);
-    
-    //vkGetImageMemoryRequirements
+    vk::Image im;
+
+    if(device->createImage(&imageInfo, nullptr, &im)!=vk::Result::eSuccess)
+      throw std::runtime_error("Failed to create Image");
+    image = device->createImageUnique(imageInfo);
+
     vk::MemoryRequirements memRequirements;
-    device.getImageMemoryRequirements(image, &memRequirements);
+    device->getImageMemoryRequirements(image.get(),&memRequirements);
+    const vk::MemoryAllocateInfo allocInfo(
+      memRequirements.size, 
+      findMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice));
+    
+    mem = device->allocateMemoryUnique(allocInfo);
+    device->bindImageMemory(image.get(), mem.get(), 0);
 
-    vk::MemoryAllocateInfo allocInfo{};
-    allocInfo.sType = vk::StructureType::eMemoryAllocateInfo;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties, physicalDevice);
-    device.allocateMemory(&allocInfo, nullptr, &mem);
-
-    vkBindImageMemory(device, image, mem, 0);
     if(!viewAspectFlags){
-      vk::ImageViewCreateInfo viewInfo{};
-      viewInfo.sType = vk::StructureType::eImageViewCreateInfo;
-      viewInfo.image = image;
-      viewInfo.viewType = vk::ImageViewType::e2D;
-      viewInfo.format = format;
-      viewInfo.subresourceRange.aspectMask = viewAspectFlags;
-      viewInfo.subresourceRange.baseMipLevel = 0;
-      viewInfo.subresourceRange.levelCount = mipLevels;
-      viewInfo.subresourceRange.baseArrayLayer = 0;
-      viewInfo.subresourceRange.layerCount = 1;
-      device.createImageView(&viewInfo, nullptr, &view);
-    }
-  };
-  ~Image(){
-    if(!view){
-      vkDestroyImageView(dev, view, nullptr);
-    }
-    vkDestroyImage(dev, image, nullptr);
-    vkFreeMemory(dev, mem, nullptr);
+      const vk::ImageViewCreateInfo viewInfo(
+        {},
+        image.get(),
+        vk::ImageViewType::e2D,
+        format,
+        {},
+        vk::ImageSubresourceRange(
+          viewAspectFlags,
+          0,
+          mipLevels,
+          0,
+          1
+        ));
+        view = device->createImageViewUnique(viewInfo);
+      }
+    
+    
   };
 
   uint32_t findMemoryType(
     uint32_t typeFilter,
     vk::MemoryPropertyFlags properties,
-    vk::PhysicalDevice physicalDevice)
+    vk::PhysicalDevice* physicalDevice)
     {
       vk::PhysicalDeviceMemoryProperties memProperties;
-      physicalDevice.getMemoryProperties(&memProperties);
+      physicalDevice->getMemoryProperties(&memProperties);
 
       for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
           if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {

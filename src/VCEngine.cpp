@@ -25,14 +25,10 @@
 #include <memory>
 #include <cassert>
 
-const std::string MODEL_PATH = "models/viking_room.obj";
-const std::string TEXTURE_PATH = "textures/viking_room.png";
-
 #include "Vertex.hpp"
-
 #include "UniformBufferObject.hpp"
-
 #include "VCEngine.hpp"
+#include "Setup.hpp"
 
 typedef std::vector<Vertex> Mesh;
 
@@ -44,7 +40,9 @@ struct SwapChainSupportDetails {
 
 using namespace vcc;
 
-void VCEngine::run(){};
+void VCEngine::run(){
+  Setup s(this);
+};
 
 VCEngine::VCEngine(
   int width,
@@ -131,7 +129,7 @@ void VCEngine::createLogicalDevice() {
 
     vk::DeviceCreateInfo createInfo{};
     createInfo.sType =     createInfo.sType = vk::StructureType::eDeviceCreateInfo;
-;
+
 
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
@@ -282,9 +280,10 @@ void VCEngine::populateDebugMessengerCreateInfo(vk::DebugUtilsMessengerCreateInf
 }
 
 vk::Result VCEngine::CreateDebugUtilsMessengerEXT(vk::Instance instance, 
-const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
-const vk::AllocationCallbacks* pAllocator, 
-vk::DebugUtilsMessengerEXT* pDebugMessenger) {
+  const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo, 
+  const vk::AllocationCallbacks* pAllocator, 
+  vk::DebugUtilsMessengerEXT* pDebugMessenger) 
+  {
   
   return instance.createDebugUtilsMessengerEXT(pCreateInfo, pAllocator, pDebugMessenger, dload);
 }

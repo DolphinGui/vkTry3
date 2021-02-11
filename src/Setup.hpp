@@ -5,10 +5,12 @@
 #include <vector>
 #include <fstream>
 
-#include "VCEngine.hpp"
 #include "Image.hpp"
 using namespace vcc;
 namespace vcc{
+
+class VCEngine;
+
 class Setup{
 public:
   Setup(VCEngine* engine);
@@ -31,6 +33,7 @@ private:
   vk::CommandPool commandPool;
 
   Image color;
+  Image depth;
 
   void createSwapChain();
   void createRenderPass();
@@ -39,6 +42,7 @@ private:
   void createCommandPool();
   void createDepthResources();
   void createFramebuffers();
+  
   vk::ShaderModule createShaderModule(const std::vector<char>& code);
   vk::ImageView createImageView(vk::Image image,
     vk::Format format, vk::ImageAspectFlags aspectFlags,
