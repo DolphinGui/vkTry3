@@ -1,19 +1,21 @@
 #include <bits/stdint-uintn.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <vector>
 #include <array>
 #include <cstdint>
+#include <iostream>
+#include <ostream>
 
 #include "Setup.hpp"
 #include "Vertex.hpp"
-#include "Image.hpp"
+#include "ImageBundle.hpp"
 #include "VCEngine.hpp"
 
 using namespace vcc;
-Setup::Setup(VCEngine* engine): env(engine){
+Setup::Setup(VCEngine* engine):
+ env(engine)
+ {
   createSwapChain();
   swapChainImageViews.resize(swapChainImages.size());
 
@@ -36,7 +38,7 @@ Setup::Setup(VCEngine* engine): env(engine){
     throw std::runtime_error("failed to create command pool");
 
   vk::Format colorFormat = swapChainImageFormat;
-  color = Image(
+  color = ImageBundle(
       swapChainExtent.width,
       swapChainExtent.height,
       1,
@@ -50,14 +52,14 @@ Setup::Setup(VCEngine* engine): env(engine){
       vk::ImageAspectFlagBits::eColor
   );
 
-  depth = Image(
+  depth = ImageBundle(
       swapChainExtent.width,
       swapChainExtent.height,
       1,
       env->msaaSamples,
       findSupportedFormat(
         {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
-        vk::ImageTiling::eOptimal, 
+        vk::ImageTiling::eOptimal,
         vk::FormatFeatureFlagBits::eDepthStencilAttachment),
       vk::ImageTiling::eOptimal,
       vk::ImageUsageFlagBits::eDepthStencilAttachment,
@@ -70,8 +72,8 @@ Setup::Setup(VCEngine* engine): env(engine){
 }
 
 Setup::~Setup(){
-    
 
+    std::cout<<"destroying the setup" << std::endl;
     for(auto fbuffer : swapChainFramebuffers){
         env->device.destroyFramebuffer(fbuffer);
     }
@@ -82,9 +84,6 @@ Setup::~Setup(){
         env->device.destroyImageView(view);
     }
     env->device.destroySwapchainKHR(swapChain);
-    for(auto image : swapChainImages){
-        env->device.destroyImage(image);
-    }
     env->device.destroyDescriptorSetLayout(descriptorSetLayout);
     env->device.destroyCommandPool(commandPool);
 }
@@ -106,8 +105,8 @@ void Setup::createRenderPass() {
         {},
         findSupportedFormat(
             {
-                vk::Format::eD32Sfloat, 
-                vk::Format::eD32SfloatS8Uint, 
+                vk::Format::eD32Sfloat,
+                vk::Format::eD32SfloatS8Uint,
                 vk::Format::eD24UnormS8Uint
             },
             vk::ImageTiling::eOptimal,
@@ -162,14 +161,14 @@ void Setup::createRenderPass() {
     vk::SubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = 
-    vk::PipelineStageFlagBits::eColorAttachmentOutput | 
+    dependency.srcStageMask =
+    vk::PipelineStageFlagBits::eColorAttachmentOutput |
     vk::PipelineStageFlagBits::eEarlyFragmentTests;
     dependency.srcAccessMask = {};
-    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | 
+    dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
     vk::PipelineStageFlagBits::eEarlyFragmentTests;
-    dependency.dstAccessMask = 
-    vk::AccessFlagBits::eColorAttachmentWrite | 
+    dependency.dstAccessMask =
+    vk::AccessFlagBits::eColorAttachmentWrite |
     vk::AccessFlagBits::eDepthStencilAttachmentWrite;
 
     std::array<vk::AttachmentDescription, 3> attachments = {
@@ -187,17 +186,17 @@ void Setup::createRenderPass() {
 }
 
 vk::Format Setup::findSupportedFormat(
-    const std::vector<vk::Format>& candidates, 
-    vk::ImageTiling tiling, 
+    const std::vector<vk::Format>& candidates,
+    vk::ImageTiling tiling,
     vk::FormatFeatureFlags features) {
     for (vk::Format format : candidates) {
         vk::FormatProperties props;
         env->physicalDevice.getFormatProperties(format, &props);
 
-        if (tiling == vk::ImageTiling::eLinear && 
+        if (tiling == vk::ImageTiling::eLinear &&
         (props.linearTilingFeatures & features) == features) {
             return format;
-        } else if (tiling == vk::ImageTiling::eOptimal 
+        } else if (tiling == vk::ImageTiling::eOptimal
         && (props.optimalTilingFeatures & features) == features) {
             return format;
         }
@@ -260,7 +259,7 @@ void Setup::createGraphicsPipeline() {
 
     vk::ShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     vk::ShaderModule fragShaderModule = createShaderModule(fragShaderCode);
-    
+
     vk::PipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = vk::StructureType::ePipelineShaderStageCreateInfo;
     vertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
@@ -274,7 +273,7 @@ void Setup::createGraphicsPipeline() {
     fragShaderStageInfo.pName = "main";
 
     vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-    
+
     vk::PipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = vk::StructureType::ePipelineVertexInputStateCreateInfo;
 
@@ -298,7 +297,7 @@ void Setup::createGraphicsPipeline() {
     viewport.height = (float) swapChainExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    
+
     vk::Rect2D scissor{};
     vk::Offset2D offset = {0, 0};
     scissor.offset = offset;
@@ -310,7 +309,7 @@ void Setup::createGraphicsPipeline() {
     viewportState.pViewports = &viewport;
     viewportState.scissorCount = 1;
     viewportState.pScissors = &scissor;
-    
+
     vk::PipelineRasterizationStateCreateInfo rasterizer{};
     rasterizer.sType = vk::StructureType::ePipelineRasterizationStateCreateInfo;
     rasterizer.depthClampEnable = VK_FALSE;
@@ -325,7 +324,7 @@ void Setup::createGraphicsPipeline() {
     multisampling.sType = vk::StructureType::ePipelineMultisampleStateCreateInfo;
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = env->msaaSamples;
-    
+
     vk::PipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = vk::StructureType::ePipelineDepthStencilStateCreateInfo;
     depthStencil.depthTestEnable = VK_TRUE;
@@ -335,7 +334,7 @@ void Setup::createGraphicsPipeline() {
     depthStencil.stencilTestEnable = VK_FALSE;
 
     vk::PipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | 
+    colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR |
     vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
     colorBlendAttachment.blendEnable = VK_FALSE;
 
@@ -355,11 +354,11 @@ void Setup::createGraphicsPipeline() {
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
     if(env->device.createPipelineLayout(
-        &pipelineLayoutInfo, 
-        nullptr, 
+        &pipelineLayoutInfo,
+        nullptr,
         &pipelineLayout)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");
-    
+
     vk::GraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = vk::StructureType::eGraphicsPipelineCreateInfo;
     pipelineInfo.stageCount = 2;
@@ -376,12 +375,12 @@ void Setup::createGraphicsPipeline() {
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = vk::Pipeline(nullptr);
     if(env->device.createGraphicsPipelines(
-        vk::PipelineCache(nullptr), 
-        1, 
-        &pipelineInfo, nullptr, 
+        vk::PipelineCache(nullptr),
+        1,
+        &pipelineInfo, nullptr,
         &graphicsPipeline)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");
-    
+
 
     vkDestroyShaderModule(env->device, fragShaderModule, nullptr);
     vkDestroyShaderModule(env->device, vertShaderModule, nullptr);
@@ -394,8 +393,8 @@ vk::ShaderModule Setup::createShaderModule(const std::vector<char>& code) {
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     vk::ShaderModule shaderModule;
-    if(env->device.createShaderModule(&createInfo, 
-    nullptr, 
+    if(env->device.createShaderModule(&createInfo,
+    nullptr,
     &shaderModule)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");;
 
@@ -405,7 +404,7 @@ vk::ShaderModule Setup::createShaderModule(const std::vector<char>& code) {
 void Setup::createFramebuffers(){
     swapChainFramebuffers.resize(swapChainImageViews.size());
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-        const vk::ImageView attachments[] = {
+        std::array<vk::ImageView,3> attachments = {
             color.view.get(),
             depth.view.get(),
             swapChainImageViews[i]
@@ -414,7 +413,7 @@ void Setup::createFramebuffers(){
             {},
             renderPass,
             static_cast<uint32_t>(3),
-            attachments,
+            attachments.data(),
             swapChainExtent.width,
             swapChainExtent.height,
             1
@@ -426,18 +425,18 @@ void Setup::createFramebuffers(){
 }
 
 void Setup::createSwapChain() {
-    std::vector<vk::SurfaceFormatKHR> formats = 
+    std::vector<vk::SurfaceFormatKHR> formats =
     env->physicalDevice.getSurfaceFormatsKHR(env->surface, env->dload);
     vk::SurfaceFormatKHR surfaceFormat;
     for (const auto& availableFormat : formats) {
-        if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && 
+        if (availableFormat.format == vk::Format::eB8G8R8A8Srgb &&
         availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
             surfaceFormat = availableFormat;
         }
     }
     surfaceFormat = formats[0];
 
-    std::vector<vk::PresentModeKHR> presentModes = 
+    std::vector<vk::PresentModeKHR> presentModes =
     env->physicalDevice.getSurfacePresentModesKHR(env->surface, env->dload);
     vk::PresentModeKHR presentMode;
     for (const auto& availablePresentMode : presentModes) {
@@ -447,7 +446,7 @@ void Setup::createSwapChain() {
     }
     presentMode = vk::PresentModeKHR::eFifo;
 
-    vk::SurfaceCapabilitiesKHR capabilities = 
+    vk::SurfaceCapabilitiesKHR capabilities =
     env->physicalDevice.getSurfaceCapabilitiesKHR(env->surface, env->dload);
 
     vk::Extent2D extent;
@@ -502,7 +501,7 @@ void Setup::createSwapChain() {
         presentMode,
         VK_TRUE
     );
-    
+
     if (env->device.createSwapchainKHR(&createInfo, nullptr, &swapChain) != vk::Result::eSuccess) {
         throw std::runtime_error("failed to create swap chain!");
     }

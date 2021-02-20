@@ -1,21 +1,22 @@
 #ifndef SETUP_H_INCLUDE
 #define SETUP_H_INCLUDE
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <fstream>
 
-#include "Image.hpp"
+#include "ImageBundle.hpp"
 using namespace vcc;
 namespace vcc{
 
 class VCEngine;
+class Task;
 
 class Setup{
 public:
   Setup(VCEngine* engine);
   ~Setup();
 private:
+friend class Task;
   VCEngine* env;
 
   vk::SwapchainKHR swapChain;
@@ -32,8 +33,8 @@ private:
 
   vk::CommandPool commandPool;
 
-  Image color;
-  Image depth;
+  ImageBundle color;
+  ImageBundle depth;
 
   void createSwapChain();
   void createRenderPass();
