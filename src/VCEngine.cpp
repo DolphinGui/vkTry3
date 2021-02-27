@@ -25,12 +25,8 @@
 #include <memory>
 #include <cassert>
 
-#include "Vertex.hpp"
-#include "UniformBufferObject.hpp"
 #include "VCEngine.hpp"
 #include "Setup.hpp"
-
-typedef std::vector<Vertex> Mesh;
 
 struct SwapChainSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;
@@ -40,8 +36,7 @@ struct SwapChainSupportDetails {
 
 using namespace vcc;
 
-void VCEngine::run(){
-  Setup s(this);
+void VCEngine::run(Setup* s){
 };
 
 VCEngine::VCEngine(

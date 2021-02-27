@@ -8,7 +8,7 @@
 #include <ostream>
 
 #include "Setup.hpp"
-#include "Vertex.hpp"
+#include "data/Vertex.hpp"
 #include "ImageBundle.hpp"
 #include "VCEngine.hpp"
 

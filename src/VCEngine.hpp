@@ -33,17 +33,14 @@ public:
   const uint32_t WIDTH;
   const uint32_t HEIGHT;
   const char* APPNAME;
-  void run();
+  vk::Device device;
+  vk::PhysicalDevice physicalDevice;
+
+  void run(Setup* setup);
   VCEngine(int width, int height, const char* name);
   ~VCEngine();
   vk::SampleCountFlagBits getMSAAsamples(){
     return msaaSamples;
-  }
-  vk::Device getDevice(){
-    return device;
-  }
-  vk::PhysicalDevice getPhysicalDevice(){
-    return physicalDevice;
   }
 private:
 
@@ -63,8 +60,6 @@ private:
   vk::SurfaceKHR surface;
   vk::DispatchLoaderDynamic dload;
 
-  vk::Device device;
-  vk::PhysicalDevice physicalDevice;
   vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e2;
 
   vk::Queue graphicsQueue;
