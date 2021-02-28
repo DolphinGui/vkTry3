@@ -30,8 +30,10 @@ public:
   const uint32_t WIDTH;
   const uint32_t HEIGHT;
   const char* APPNAME;
+  
   vk::Device device;
   vk::PhysicalDevice physicalDevice;
+  vk::Queue graphicsQueue;
 
   void run(Setup* setup);
   VCEngine(int width, int height, const char* name);
@@ -60,7 +62,6 @@ private:
 
   vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e2;
 
-  vk::Queue graphicsQueue;
   vk::Queue presentQueue;
 
   bool checkValidationLayerSupport();

@@ -12,6 +12,7 @@
 #include "data/Vertex.hpp"
 #include "ImageBundle.hpp"
 #include "VCEngine.hpp"
+#include "SingleTimeCmdBuffer.hpp"
 
 using namespace vcc;
 Setup::Setup(VCEngine* engine):
@@ -510,15 +511,16 @@ void Setup::createSwapChain() {
 
 ImageBundle Setup::loadImage(void *data, vk::Extent2D size, vk::Format format){
     uint32_t imgSize = size.height*size.width*4;
+    uint32_t mip = static_cast<uint32_t>(
+            std::floor(
+                std::log2(
+                    std::max(size.width, size.height))
+        )) + 1;
     
     ImageBundle result(
         size.width,
         size.height,
-        static_cast<uint32_t>(
-            std::floor(
-                std::log2(
-                    std::max(size.width, size.height))
-        )) + 1,
+        mip,
         vk::SampleCountFlagBits::e1,
         format,
         vk::ImageTiling::eOptimal,
@@ -539,5 +541,148 @@ ImageBundle Setup::loadImage(void *data, vk::Extent2D size, vk::Format format){
     void* stuff = env->device.mapMemory(staging.mem.get(),0,imgSize);
     memcpy(stuff, data, imgSize);
     env->device.unmapMemory(staging.mem.get());
-    //TODO: finish this
+
+    SingleTimeCmdBuffer cmd(&env->device, &env->graphicsQueue, &commandPool);
+    transitionImageLayout(
+        cmd.cmd,
+        result.image.get(), 
+        format, 
+        vk::ImageLayout::eUndefined, 
+        vk::ImageLayout::eUndefined, mip);
+    
+    cmd.cmd.copyBufferToImage(
+        staging.buffer.get(), 
+        result.image.get(), 
+        vk::ImageLayout::eTransferDstOptimal, 
+        vk::BufferImageCopy(
+            0,
+            0,
+            0,
+            vk::ImageSubresourceLayers(
+                vk::ImageAspectFlagBits::eColor,
+                0,
+                0,
+                1
+            ),
+            vk::Offset3D(0,0,0),
+            vk::Extent3D(size.width, size.height, 1)
+        )
+    );
+
+    vk::FormatProperties fprop = env->physicalDevice.getFormatProperties(format);
+    if(!(fprop.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear))
+        throw std::runtime_error("physicalDevice does not support linear blitting");
+    //Finish mipmap generation, and determine syncronization.
+    vk::ImageMemoryBarrier mipmapper{};
+    mipmapper.image = result.image.get();
+    mipmapper.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    mipmapper.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    mipmapper.subresourceRange = vk::ImageSubresourceRange(
+        vk::ImageAspectFlagBits::eColor,
+        {},
+        1,
+        0,
+        1
+    );
+
+    for (uint32_t i = 1; i < mip; i++) {
+        mipmapper.subresourceRange.baseMipLevel = i - 1;
+        mipmapper.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+        mipmapper.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        mipmapper.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+        mipmapper.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        cmd.cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eFragmentShader,
+            {},
+            nullptr,
+            nullptr,
+            mipmapper
+        );
+
+        vk::ImageBlit blit;
+        blit.srcOffsets[0] = vk::Offset3D(0,0,0);
+        blit.srcOffsets[1] = vk::Offset3D(size.width, size.height, 1);
+        blit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = vk::Offset3D(0,0,0);
+        blit.dstOffsets[1] = vk::Offset3D( size.width > 1 ? size.width / 2 : 1, size.height > 1 ? size.height / 2 : 1, 1 );
+        blit.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+
+        cmd.cmd.blitImage(
+            result.image.get(),
+            vk::ImageLayout::eTransferSrcOptimal,
+            result.image.get(),
+            vk::ImageLayout::eTransferDstOptimal,
+            blit,
+            vk::Filter::eLinear//research more on texel filtering later
+        );
+
+        mipmapper.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+        mipmapper.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        mipmapper.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+        mipmapper.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        cmd.cmd.pipelineBarrier(
+            vk::PipelineStageFlagBits::eTransfer,
+            vk::PipelineStageFlagBits::eFragmentShader,
+            {},
+            nullptr,
+            nullptr,
+            mipmapper
+        );
+
+        if (size.width > 1) size.width /= 2;
+        if (size.height > 1) size.height /= 2;
+    }
+    cmd.submit();
+    return result;
+}
+
+void Setup::transitionImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::Format format, vk::ImageLayout old, vk::ImageLayout neo, uint32_t mip){
+    vk::ImageMemoryBarrier barrier(
+        {},{}, vk::ImageLayout::eUndefined,
+        vk::ImageLayout::eTransferDstOptimal,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        image,
+        vk::ImageSubresourceRange(
+            vk::ImageAspectFlagBits::eColor,
+            0,
+            mip,
+            0,
+            1
+        )
+    );
+    vk::PipelineStageFlags src;
+    vk::PipelineStageFlags dst;
+
+    if (old == vk::ImageLayout::eUndefined && neo == vk::ImageLayout::eTransferDstOptimal) {
+        barrier.srcAccessMask = {};
+        barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+
+        src = vk::PipelineStageFlagBits::eTopOfPipe;
+        dst = vk::PipelineStageFlagBits::eTransfer;
+    } else if (old == vk::ImageLayout::eTransferDstOptimal && neo == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+        src = vk::PipelineStageFlagBits::eTransfer;
+        dst = vk::PipelineStageFlagBits::eFragmentShader;
+    } else {
+        throw std::invalid_argument("unsupported layout transition!");
+    }
+    cmd.pipelineBarrier(
+        src, dst,
+        {},
+        nullptr,
+        nullptr,
+        barrier
+    );
 }

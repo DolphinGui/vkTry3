@@ -1,5 +1,6 @@
 #ifndef SETUP_H_INCLUDE
 #define SETUP_H_INCLUDE
+#include <bits/stdint-uintn.h>
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <fstream>
@@ -12,10 +13,9 @@ class Setup{
 public:
   Setup(VCEngine* engine);
   ~Setup();
-  ImageBundle loadImage(
-    void* data, vk::Extent2D size, vk::Format format);
 private:
 friend class Task;
+
   VCEngine* env;
 
   vk::SwapchainKHR swapChain;
@@ -43,6 +43,8 @@ friend class Task;
   void createDepthResources();
   void createFramebuffers();
   
+  ImageBundle loadImage(
+    void* data, vk::Extent2D size, vk::Format format);
   vk::ShaderModule createShaderModule(const std::vector<char>& code);
   vk::ImageView createImageView(vk::Image image,
     vk::Format format, vk::ImageAspectFlags aspectFlags,
@@ -51,6 +53,7 @@ friend class Task;
     const std::vector<vk::Format>& candidates,
     vk::ImageTiling tiling,
     vk::FormatFeatureFlags features);
+  void transitionImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::Format format, vk::ImageLayout old, vk::ImageLayout neo, uint32_t mip);
   static std::vector<char> readFile(const std::string& filename) {
       std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
