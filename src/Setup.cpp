@@ -7,6 +7,7 @@
 #include <iostream>
 #include <ostream>
 
+#include "Buffer.hpp"
 #include "Setup.hpp"
 #include "data/Vertex.hpp"
 #include "ImageBundle.hpp"
@@ -38,6 +39,7 @@ Setup::Setup(VCEngine* engine):
     throw std::runtime_error("failed to create command pool");
 
   vk::Format colorFormat = swapChainImageFormat;
+
   color = ImageBundle(
       swapChainExtent.width,
       swapChainExtent.height,
@@ -47,8 +49,7 @@ Setup::Setup(VCEngine* engine):
       vk::ImageTiling::eOptimal,
       vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
       vk::MemoryPropertyFlagBits::eDeviceLocal,
-      &env->device,
-      &env->physicalDevice,
+      env,
       vk::ImageAspectFlagBits::eColor
   );
 
@@ -64,16 +65,13 @@ Setup::Setup(VCEngine* engine):
       vk::ImageTiling::eOptimal,
       vk::ImageUsageFlagBits::eDepthStencilAttachment,
       vk::MemoryPropertyFlagBits::eDeviceLocal,
-      &env->device,
-      &env->physicalDevice,
+      env,
       vk::ImageAspectFlagBits::eDepth
   );
   createFramebuffers();
 }
 
 Setup::~Setup(){
-
-    std::cout<<"destroying the setup" << std::endl;
     for(auto fbuffer : swapChainFramebuffers){
         env->device.destroyFramebuffer(fbuffer);
     }
@@ -508,4 +506,38 @@ void Setup::createSwapChain() {
     swapChainImages = env->device.getSwapchainImagesKHR(swapChain, env->dload);
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
+}
+
+ImageBundle Setup::loadImage(void *data, vk::Extent2D size, vk::Format format){
+    uint32_t imgSize = size.height*size.width*4;
+    
+    ImageBundle result(
+        size.width,
+        size.height,
+        static_cast<uint32_t>(
+            std::floor(
+                std::log2(
+                    std::max(size.width, size.height))
+        )) + 1,
+        vk::SampleCountFlagBits::e1,
+        format,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eTransferSrc|
+            vk::ImageUsageFlagBits::eTransferDst|
+            vk::ImageUsageFlagBits::eSampled,
+        vk::MemoryPropertyFlagBits::eDeviceLocal,
+        env,
+        vk::ImageAspectFlagBits::eColor);
+
+    vcc::Buffer staging(
+        env,
+        imgSize,
+        {},
+        vk::BufferUsageFlagBits::eTransferSrc,
+        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+    void* stuff = env->device.mapMemory(staging.mem.get(),0,imgSize);
+    memcpy(stuff, data, imgSize);
+    env->device.unmapMemory(staging.mem.get());
+    //TODO: finish this
 }

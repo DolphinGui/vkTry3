@@ -26,37 +26,10 @@ ImageBundle(
   VCEngine* env,
   vk::ImageAspectFlags viewAspectFlags = {}
 );
-ImageBundle(
-  uint32_t width,
-  uint32_t height,
-  uint32_t mipLevels,
-  vk::SampleCountFlagBits numSamples,
-  vk::Format format,
-  vk::ImageTiling tiling,
-  vk::ImageUsageFlags usage,
-  vk::MemoryPropertyFlags properties,
-  VCEngine* env,
-  void* data,
-  size_t size,
-  vk::ImageAspectFlags viewAspectFlags = {}
-);
 uint32_t findMemoryType(
   uint32_t typeFilter,
   vk::MemoryPropertyFlags properties,
   vk::PhysicalDevice* physicalDevice);
-private:
-void init(
-  uint32_t width,
-  uint32_t height,
-  uint32_t mipLevels,
-  vk::SampleCountFlagBits numSamples,
-  vk::Format format,
-  vk::ImageTiling tiling,
-  vk::ImageUsageFlags usage,
-  vk::MemoryPropertyFlags properties,
-  vk::Device* device,
-  vk::PhysicalDevice* physicalDevice,
-  vk::ImageAspectFlags viewAspectFlags);
 };
 }
 #endif

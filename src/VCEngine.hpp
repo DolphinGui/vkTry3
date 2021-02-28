@@ -14,10 +14,7 @@ const bool enableValidationLayers = false;
 const bool enableValidationLayers = true;
 #endif
 
-
-
 namespace vcc{
-
 struct QueueFamilyIndices {
   std::optional<uint32_t> graphicsFamily;
   std::optional<uint32_t> presentFamily;
@@ -42,6 +39,7 @@ public:
   vk::SampleCountFlagBits getMSAAsamples(){
     return msaaSamples;
   }
+  
 private:
 
   const std::vector<const char*> validationLayers = {

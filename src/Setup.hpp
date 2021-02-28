@@ -5,16 +5,15 @@
 #include <fstream>
 
 #include "ImageBundle.hpp"
+
 using namespace vcc;
 namespace vcc{
-
-class VCEngine;
-class Task;
-
 class Setup{
 public:
   Setup(VCEngine* engine);
   ~Setup();
+  ImageBundle loadImage(
+    void* data, vk::Extent2D size, vk::Format format);
 private:
 friend class Task;
   VCEngine* env;
