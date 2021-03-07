@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Buffer.hpp"
-#include "VCEngine.hpp"
+#include "../VCEngine.hpp"
 
 using namespace vcc;
 
@@ -16,9 +16,7 @@ Buffer::Buffer(
     vk::SharingMode share,
     uint32_t queueFamilyIndexCount,
     const uint32_t* queueFamilyIndicies
-    ):
-    dev(&env->device)
-    {
+    ){
 
     vk::BufferCreateInfo bufferInfo(
         {},
@@ -28,9 +26,9 @@ Buffer::Buffer(
         queueFamilyIndexCount,
         queueFamilyIndicies
     );
-    buffer = dev->createBufferUnique(bufferInfo);
-    vk::MemoryRequirements memReqs = dev->getBufferMemoryRequirements(buffer.get());
-    vk::PhysicalDeviceMemoryProperties physmem = env->physicalDevice.getMemoryProperties();
+    buffer = env->getDevPtr()->createBufferUnique(bufferInfo);
+    vk::MemoryRequirements memReqs = env->getDevPtr()->getBufferMemoryRequirements(buffer.get());
+    vk::PhysicalDeviceMemoryProperties physmem = env->getMemProps();
     uint32_t memory = 0;
     while(memory < physmem.memoryTypeCount) {
         if ((memReqs.memoryTypeBits & (1 << memory)) && 
@@ -41,7 +39,7 @@ Buffer::Buffer(
     }
     
     vk::MemoryAllocateInfo memInfo(memReqs.size, memory);
-    mem = dev->allocateMemoryUnique(memInfo);
+    mem = env->getDevPtr()->allocateMemoryUnique(memInfo);
 }
 
 Buffer Buffer::load(
@@ -67,11 +65,11 @@ Buffer Buffer::load(
         queueFamilyIndicies
     );
     void* stuff;
-    stuff = env->device.mapMemory(staging.mem.get(), 0, size);
+    stuff = env->getDevPtr()->mapMemory(staging.mem.get(), 0, size);
 
     memcpy(stuff, data, size);
 
-    env->device.unmapMemory(staging.mem.get());
+    env->getDevPtr()->unmapMemory(staging.mem.get());
 
     return result;
 }

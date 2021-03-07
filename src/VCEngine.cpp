@@ -1,3 +1,4 @@
+#include <bits/stdint-uintn.h>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
@@ -35,7 +36,6 @@ struct SwapChainSupportDetails {
 };
 
 using namespace vcc;
-
 void VCEngine::run(Setup* s){
 };
 
@@ -49,10 +49,8 @@ VCEngine::VCEngine(
   {
   initGLFW();
   initInstance();
-  vk::DynamicLoader dl;
-  PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = 
-  dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
-  dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr);
+  dload = vk::DispatchLoaderDynamic(instance, 
+  vk::DynamicLoader().getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
   if (enableValidationLayers){
     vk::DebugUtilsMessengerCreateInfoEXT createInfo;
     populateDebugMessengerCreateInfo(createInfo);
@@ -70,6 +68,8 @@ VCEngine::VCEngine(
 
   pickPhysicalDevice();
   createLogicalDevice();
+
+  physProps = physicalDevice.getMemoryProperties();
     
   dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr, device);
 }
@@ -148,18 +148,14 @@ void VCEngine::createLogicalDevice() {
     device.getQueue(indices.presentFamily.value(), 0, &presentQueue);
 }
 
-QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device){
+QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device) const {
   QueueFamilyIndices indices;
 
-  uint32_t queueFamilyCount = 0;
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-  std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-  vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+  std::vector<vk::QueueFamilyProperties> queueFamilies(device.getQueueFamilyProperties());
 
   int i = 0;
-  for (const auto& queueFamily : queueFamilies) {
-      if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+  for (const auto &queueFamily : queueFamilies) {
+      if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
           indices.graphicsFamily = i;
       }
       
@@ -170,7 +166,10 @@ QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device){
       if (presentSupport) {
           indices.presentFamily = i;
       }
-
+      if((queueFamily.queueFlags & vk::QueueFlagBits::eTransfer) &&
+        queueFamily.queueCount==1){
+          indices.transferFamily = i;
+        }
       if (indices.isComplete()) {
           break;
       }

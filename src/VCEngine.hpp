@@ -15,25 +15,20 @@ const bool enableValidationLayers = true;
 #endif
 
 namespace vcc{
-struct QueueFamilyIndices {
+struct QueueFamilyIndices{ //should remove this later.
   std::optional<uint32_t> graphicsFamily;
   std::optional<uint32_t> presentFamily;
-
-  bool isComplete() {
-    return graphicsFamily.has_value() && presentFamily.has_value();
+  std::optional<uint32_t> transferFamily;
+  bool isComplete(){
+    return graphicsFamily.has_value() && presentFamily.has_value() && transferFamily.has_value();
   }
 };
 class Setup;
 class VCEngine{
-  friend class Setup;
 public:
   const uint32_t WIDTH;
   const uint32_t HEIGHT;
   const char* APPNAME;
-  
-  vk::Device device;
-  vk::PhysicalDevice physicalDevice;
-  vk::Queue graphicsQueue;
 
   void run(Setup* setup);
   VCEngine(int width, int height, const char* name);
@@ -41,7 +36,45 @@ public:
   vk::SampleCountFlagBits getMSAAsamples(){
     return msaaSamples;
   }
-  
+
+  const vk::Device* const getDevPtr(){
+    return &device;
+  }
+
+  const vk::PhysicalDevice* const getPhyDevPtr(){
+    return &physicalDevice;
+  }
+
+  const vk::Queue* const getGpxPtr(){
+    return &graphicsQueue;
+  }
+
+  const vk::SurfaceKHR* const getSurfacePtr(){
+    return &surface;
+  }
+
+  const vk::DispatchLoaderDynamic* const getDload(){
+    return &dload;
+  }
+
+  vk::PhysicalDeviceMemoryProperties getMemProps(){
+    return physProps;
+  }
+
+  vk::Extent2D framebufferSize(){
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    return vk::Extent2D(
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height)
+    );
+  }
+
+  void memProps(vk::PhysicalDeviceMemoryProperties* out);
+
+  QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device) const;
+
 private:
 
   const std::vector<const char*> validationLayers = {
@@ -51,6 +84,12 @@ private:
   const std::vector<const char*> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
+
+
+  vk::Device device;
+  vk::PhysicalDevice physicalDevice;
+  vk::PhysicalDeviceMemoryProperties physProps;
+  vk::Queue graphicsQueue;
 
   GLFWwindow* window;
   bool framebufferResized = false;
@@ -74,7 +113,6 @@ private:
   void pickPhysicalDevice();
   int deviceSuitability(vk::PhysicalDevice device);
   void createLogicalDevice();
-  QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   void initGLFW();
 
   void populateDebugMessengerCreateInfo(vk::DebugUtilsMessengerCreateInfoEXT& createInfo);

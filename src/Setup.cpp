@@ -16,82 +16,78 @@
 
 using namespace vcc;
 Setup::Setup(VCEngine* engine):
- env(engine)
- {
-  createSwapChain();
-  swapChainImageViews.resize(swapChainImages.size());
+    env(engine)
+    {
+    createSwapChain();
+    swapChainImageViews.resize(swapChainImages.size());
 
-  for (uint32_t i = 0; i < swapChainImages.size(); i++) {
-      swapChainImageViews[i] = createImageView(
-        swapChainImages[i],
-        swapChainImageFormat,
-        vk::ImageAspectFlagBits::eColor,
-        1);
-  }
-  createRenderPass();
-  createDescriptorSetLayout();
-  createGraphicsPipeline();
-  QueueFamilyIndices queueFamilyIndices = env->findQueueFamilies(env->physicalDevice);
+    for (uint32_t i = 0; i < swapChainImages.size(); i++) {
+        swapChainImageViews[i] = createImageView(
+            swapChainImages[i],
+            swapChainImageFormat,
+            vk::ImageAspectFlagBits::eColor,
+            1);
+    }
+    createRenderPass();
+    createDescriptorSetLayout();
+    createGraphicsPipeline();
+    QueueFamilyIndices queueFamilyIndices = env->findQueueFamilies(*env->getPhyDevPtr());
+    graphicsQueue = engine->getDevPtr()->getQueue(0, queueFamilyIndices.graphicsFamily.value());
+    presentQueue =  engine->getDevPtr()->getQueue(0, queueFamilyIndices.presentFamily.value());
+    presentQueue =  engine->getDevPtr()->getQueue(0, queueFamilyIndices.transferFamily.value());
 
-  vk::CommandPoolCreateInfo poolInfo{};
-  poolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
-  poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
-  if(env->device.createCommandPool(&poolInfo, nullptr, &commandPool)!=vk::Result::eSuccess)
-    throw std::runtime_error("failed to create command pool");
+    vk::Format colorFormat = swapChainImageFormat;
 
-  vk::Format colorFormat = swapChainImageFormat;
-
-  color = ImageBundle(
-      swapChainExtent.width,
-      swapChainExtent.height,
-      1,
-      env->msaaSamples,
-      colorFormat,
-      vk::ImageTiling::eOptimal,
-      vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
-      vk::MemoryPropertyFlagBits::eDeviceLocal,
-      env,
-      vk::ImageAspectFlagBits::eColor
-  );
-
-  depth = ImageBundle(
-      swapChainExtent.width,
-      swapChainExtent.height,
-      1,
-      env->msaaSamples,
-      findSupportedFormat(
-        {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
+    color = ImageBundle(
+        swapChainExtent.width,
+        swapChainExtent.height,
+        1,
+        env->getMSAAsamples(),
+        colorFormat,
         vk::ImageTiling::eOptimal,
-        vk::FormatFeatureFlagBits::eDepthStencilAttachment),
-      vk::ImageTiling::eOptimal,
-      vk::ImageUsageFlagBits::eDepthStencilAttachment,
-      vk::MemoryPropertyFlagBits::eDeviceLocal,
-      env,
-      vk::ImageAspectFlagBits::eDepth
-  );
-  createFramebuffers();
+        vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
+        vk::MemoryPropertyFlagBits::eDeviceLocal,
+        env,
+        vk::ImageAspectFlagBits::eColor
+    );
+
+    depth = ImageBundle(
+        swapChainExtent.width,
+        swapChainExtent.height,
+        1,
+        env->getMSAAsamples(),
+        findSupportedFormat(
+            {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
+            vk::ImageTiling::eOptimal,
+            vk::FormatFeatureFlagBits::eDepthStencilAttachment),
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        vk::MemoryPropertyFlagBits::eDeviceLocal,
+        env,
+        vk::ImageAspectFlagBits::eDepth
+    );
+    createFramebuffers();
 }
 
 Setup::~Setup(){
     for(auto fbuffer : swapChainFramebuffers){
-        env->device.destroyFramebuffer(fbuffer);
+        env->getDevPtr()->destroyFramebuffer(fbuffer);
     }
-    env->device.destroyPipeline(graphicsPipeline);
-    env->device.destroyPipelineLayout(pipelineLayout);
-    env->device.destroyRenderPass(renderPass);
+    env->getDevPtr()->destroyPipeline(graphicsPipeline);
+    env->getDevPtr()->destroyPipelineLayout(pipelineLayout);
+    env->getDevPtr()->destroyRenderPass(renderPass);
     for(auto view : swapChainImageViews){
-        env->device.destroyImageView(view);
+        env->getDevPtr()->destroyImageView(view);
     }
-    env->device.destroySwapchainKHR(swapChain);
-    env->device.destroyDescriptorSetLayout(descriptorSetLayout);
-    env->device.destroyCommandPool(commandPool);
+    env->getDevPtr()->destroySwapchainKHR(swapChain);
+    env->getDevPtr()->destroyDescriptorSetLayout(descriptorSetLayout);
 }
 
 void Setup::createRenderPass() {
     vk::AttachmentDescription colorAttachment(
         {},
         swapChainImageFormat,
-        env->msaaSamples,
+        env->getMSAAsamples(),
         vk::AttachmentLoadOp::eClear,
         vk::AttachmentStoreOp::eStore,
         vk::AttachmentLoadOp::eDontCare,
@@ -111,7 +107,7 @@ void Setup::createRenderPass() {
             vk::ImageTiling::eOptimal,
             vk::FormatFeatureFlagBits::eDepthStencilAttachment
         ),
-        env->msaaSamples,
+        env->getMSAAsamples(),
         vk::AttachmentLoadOp::eClear,
         vk::AttachmentStoreOp::eDontCare,
         vk::AttachmentLoadOp::eDontCare,
@@ -180,7 +176,7 @@ void Setup::createRenderPass() {
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
-    if(env->device.createRenderPass(&renderPassInfo, nullptr, &renderPass)!=vk::Result::eSuccess)
+    if(env->getDevPtr()->createRenderPass(&renderPassInfo, nullptr, &renderPass)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");
 }
 
@@ -190,7 +186,7 @@ vk::Format Setup::findSupportedFormat(
     vk::FormatFeatureFlags features) {
     for (vk::Format format : candidates) {
         vk::FormatProperties props;
-        env->physicalDevice.getFormatProperties(format, &props);
+        env->getPhyDevPtr()->getFormatProperties(format, &props);
 
         if (tiling == vk::ImageTiling::eLinear &&
         (props.linearTilingFeatures & features) == features) {
@@ -224,7 +220,7 @@ void Setup::createDescriptorSetLayout() {
     layoutInfo.sType = vk::StructureType::eDescriptorSetLayoutCreateInfo;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
-    if(env->device.createDescriptorSetLayout(&layoutInfo, nullptr, &descriptorSetLayout)!=vk::Result::eSuccess)
+    if(env->getDevPtr()->createDescriptorSetLayout(&layoutInfo, nullptr, &descriptorSetLayout)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");
 }
 
@@ -246,7 +242,7 @@ vk::ImageView Setup::createImageView(
     viewInfo.subresourceRange.layerCount = 1;
 
     vk::ImageView imageView;
-    if(env->device.createImageView(&viewInfo, nullptr, &imageView)!=vk::Result::eSuccess)
+    if(env->getDevPtr()->createImageView(&viewInfo, nullptr, &imageView)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");
 
     return imageView;
@@ -322,7 +318,7 @@ void Setup::createGraphicsPipeline() {
     vk::PipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = vk::StructureType::ePipelineMultisampleStateCreateInfo;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = env->msaaSamples;
+    multisampling.rasterizationSamples = env->getMSAAsamples();
 
     vk::PipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = vk::StructureType::ePipelineDepthStencilStateCreateInfo;
@@ -352,7 +348,7 @@ void Setup::createGraphicsPipeline() {
     pipelineLayoutInfo.sType = vk::StructureType::ePipelineLayoutCreateInfo;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-    if(env->device.createPipelineLayout(
+    if(env->getDevPtr()->createPipelineLayout(
         &pipelineLayoutInfo,
         nullptr,
         &pipelineLayout)!=vk::Result::eSuccess)
@@ -373,7 +369,7 @@ void Setup::createGraphicsPipeline() {
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
     pipelineInfo.basePipelineHandle = vk::Pipeline(nullptr);
-    if(env->device.createGraphicsPipelines(
+    if(env->getDevPtr()->createGraphicsPipelines(
         vk::PipelineCache(nullptr),
         1,
         &pipelineInfo, nullptr,
@@ -381,8 +377,8 @@ void Setup::createGraphicsPipeline() {
         throw std::runtime_error("failed to create render pass");
 
 
-    vkDestroyShaderModule(env->device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(env->device, vertShaderModule, nullptr);
+    vkDestroyShaderModule(*env->getDevPtr(), fragShaderModule, nullptr);
+    vkDestroyShaderModule(*env->getDevPtr(), vertShaderModule, nullptr);
 }
 
 vk::ShaderModule Setup::createShaderModule(const std::vector<char>& code) {
@@ -392,7 +388,7 @@ vk::ShaderModule Setup::createShaderModule(const std::vector<char>& code) {
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     vk::ShaderModule shaderModule;
-    if(env->device.createShaderModule(&createInfo,
+    if(env->getDevPtr()->createShaderModule(&createInfo,
     nullptr,
     &shaderModule)!=vk::Result::eSuccess)
         throw std::runtime_error("failed to create render pass");;
@@ -417,7 +413,7 @@ void Setup::createFramebuffers(){
             swapChainExtent.height,
             1
         );
-        if (env->device.createFramebuffer(&framebufferInfo, nullptr, &swapChainFramebuffers[i]) != vk::Result::eSuccess) {
+        if (env->getDevPtr()->createFramebuffer(&framebufferInfo, nullptr, &swapChainFramebuffers[i]) != vk::Result::eSuccess) {
             throw std::runtime_error("failed to create framebuffer!");
         }
     }
@@ -425,7 +421,7 @@ void Setup::createFramebuffers(){
 
 void Setup::createSwapChain() {
     std::vector<vk::SurfaceFormatKHR> formats =
-    env->physicalDevice.getSurfaceFormatsKHR(env->surface, env->dload);
+    env->getPhyDevPtr()->getSurfaceFormatsKHR(*env->getSurfacePtr(), *env->getDload());
     vk::SurfaceFormatKHR surfaceFormat;
     for (const auto& availableFormat : formats) {
         if (availableFormat.format == vk::Format::eB8G8R8A8Srgb &&
@@ -436,7 +432,7 @@ void Setup::createSwapChain() {
     surfaceFormat = formats[0];
 
     std::vector<vk::PresentModeKHR> presentModes =
-    env->physicalDevice.getSurfacePresentModesKHR(env->surface, env->dload);
+    env->getPhyDevPtr()->getSurfacePresentModesKHR(*env->getSurfacePtr(), *env->getDload());
     vk::PresentModeKHR presentMode;
     for (const auto& availablePresentMode : presentModes) {
         if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
@@ -446,19 +442,13 @@ void Setup::createSwapChain() {
     presentMode = vk::PresentModeKHR::eFifo;
 
     vk::SurfaceCapabilitiesKHR capabilities =
-    env->physicalDevice.getSurfaceCapabilitiesKHR(env->surface, env->dload);
+    env->getPhyDevPtr()->getSurfaceCapabilitiesKHR(*env->getSurfacePtr(), *env->getDload());
 
     vk::Extent2D extent;
     if (capabilities.currentExtent.width != UINT32_MAX) {
         extent = capabilities.currentExtent;
     } else {
-        int width, height;
-        glfwGetFramebufferSize(env->window, &width, &height);
-
-        vk::Extent2D actualExtent(
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
-        );
+        vk::Extent2D actualExtent(env->framebufferSize());
 
         actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
         actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
@@ -471,7 +461,7 @@ void Setup::createSwapChain() {
         imageCount = capabilities.maxImageCount;
     }
 
-    QueueFamilyIndices indices = env->findQueueFamilies(env->physicalDevice);
+    QueueFamilyIndices indices = env->findQueueFamilies(*env->getPhyDevPtr());
     uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
     vk::SharingMode share;
     uint32_t queueFamilyIndexCount;
@@ -485,7 +475,7 @@ void Setup::createSwapChain() {
     }
     vk::SwapchainCreateInfoKHR createInfo(
         {},
-        env->surface,
+        *env->getSurfacePtr(),
         imageCount,
         surfaceFormat.format,
         surfaceFormat.colorSpace,
@@ -501,188 +491,10 @@ void Setup::createSwapChain() {
         VK_TRUE
     );
 
-    if (env->device.createSwapchainKHR(&createInfo, nullptr, &swapChain) != vk::Result::eSuccess) {
+    if (env->getDevPtr()->createSwapchainKHR(&createInfo, nullptr, &swapChain) != vk::Result::eSuccess) {
         throw std::runtime_error("failed to create swap chain!");
     }
-    swapChainImages = env->device.getSwapchainImagesKHR(swapChain, env->dload);
+    swapChainImages = env->getDevPtr()->getSwapchainImagesKHR(swapChain, *env->getDload());
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
-}
-
-ImageBundle Setup::loadImage(void *data, vk::Extent2D size, vk::Format format){
-    uint32_t imgSize = size.height*size.width*4;
-    uint32_t mip = static_cast<uint32_t>(
-            std::floor(
-                std::log2(
-                    std::max(size.width, size.height))
-        )) + 1;
-    
-    ImageBundle result(
-        size.width,
-        size.height,
-        mip,
-        vk::SampleCountFlagBits::e1,
-        format,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eTransferSrc|
-            vk::ImageUsageFlagBits::eTransferDst|
-            vk::ImageUsageFlagBits::eSampled,
-        vk::MemoryPropertyFlagBits::eDeviceLocal,
-        env,
-        vk::ImageAspectFlagBits::eColor);
-
-    vcc::Buffer staging(
-        env,
-        imgSize,
-        {},
-        vk::BufferUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-    );
-    void* stuff = env->device.mapMemory(staging.mem.get(),0,imgSize);
-    memcpy(stuff, data, imgSize);
-    env->device.unmapMemory(staging.mem.get());
-
-    SingleTimeCmdBuffer cmd(&env->device, &env->graphicsQueue, &commandPool);
-    transitionImageLayout(
-        cmd.cmd,
-        result.image.get(), 
-        format, 
-        vk::ImageLayout::eUndefined, 
-        vk::ImageLayout::eUndefined, mip);
-    
-    cmd.cmd.copyBufferToImage(
-        staging.buffer.get(), 
-        result.image.get(), 
-        vk::ImageLayout::eTransferDstOptimal, 
-        vk::BufferImageCopy(
-            0,
-            0,
-            0,
-            vk::ImageSubresourceLayers(
-                vk::ImageAspectFlagBits::eColor,
-                0,
-                0,
-                1
-            ),
-            vk::Offset3D(0,0,0),
-            vk::Extent3D(size.width, size.height, 1)
-        )
-    );
-
-    vk::FormatProperties fprop = env->physicalDevice.getFormatProperties(format);
-    if(!(fprop.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear))
-        throw std::runtime_error("physicalDevice does not support linear blitting");
-    //Finish mipmap generation, and determine syncronization.
-    vk::ImageMemoryBarrier mipmapper{};
-    mipmapper.image = result.image.get();
-    mipmapper.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    mipmapper.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    mipmapper.subresourceRange = vk::ImageSubresourceRange(
-        vk::ImageAspectFlagBits::eColor,
-        {},
-        1,
-        0,
-        1
-    );
-
-    for (uint32_t i = 1; i < mip; i++) {
-        mipmapper.subresourceRange.baseMipLevel = i - 1;
-        mipmapper.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
-        mipmapper.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-        mipmapper.srcAccessMask = vk::AccessFlagBits::eTransferRead;
-        mipmapper.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-
-        cmd.cmd.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer,
-            vk::PipelineStageFlagBits::eFragmentShader,
-            {},
-            nullptr,
-            nullptr,
-            mipmapper
-        );
-
-        vk::ImageBlit blit;
-        blit.srcOffsets[0] = vk::Offset3D(0,0,0);
-        blit.srcOffsets[1] = vk::Offset3D(size.width, size.height, 1);
-        blit.srcSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-        blit.srcSubresource.mipLevel = i - 1;
-        blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount = 1;
-        blit.dstOffsets[0] = vk::Offset3D(0,0,0);
-        blit.dstOffsets[1] = vk::Offset3D( size.width > 1 ? size.width / 2 : 1, size.height > 1 ? size.height / 2 : 1, 1 );
-        blit.dstSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
-        blit.dstSubresource.mipLevel = i;
-        blit.dstSubresource.baseArrayLayer = 0;
-        blit.dstSubresource.layerCount = 1;
-
-        cmd.cmd.blitImage(
-            result.image.get(),
-            vk::ImageLayout::eTransferSrcOptimal,
-            result.image.get(),
-            vk::ImageLayout::eTransferDstOptimal,
-            blit,
-            vk::Filter::eLinear//research more on texel filtering later
-        );
-
-        mipmapper.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
-        mipmapper.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-        mipmapper.srcAccessMask = vk::AccessFlagBits::eTransferRead;
-        mipmapper.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-
-        cmd.cmd.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer,
-            vk::PipelineStageFlagBits::eFragmentShader,
-            {},
-            nullptr,
-            nullptr,
-            mipmapper
-        );
-
-        if (size.width > 1) size.width /= 2;
-        if (size.height > 1) size.height /= 2;
-    }
-    cmd.submit();
-    return result;
-}
-
-void Setup::transitionImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::Format format, vk::ImageLayout old, vk::ImageLayout neo, uint32_t mip){
-    vk::ImageMemoryBarrier barrier(
-        {},{}, vk::ImageLayout::eUndefined,
-        vk::ImageLayout::eTransferDstOptimal,
-        VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED,
-        image,
-        vk::ImageSubresourceRange(
-            vk::ImageAspectFlagBits::eColor,
-            0,
-            mip,
-            0,
-            1
-        )
-    );
-    vk::PipelineStageFlags src;
-    vk::PipelineStageFlags dst;
-
-    if (old == vk::ImageLayout::eUndefined && neo == vk::ImageLayout::eTransferDstOptimal) {
-        barrier.srcAccessMask = {};
-        barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
-
-        src = vk::PipelineStageFlagBits::eTopOfPipe;
-        dst = vk::PipelineStageFlagBits::eTransfer;
-    } else if (old == vk::ImageLayout::eTransferDstOptimal && neo == vk::ImageLayout::eShaderReadOnlyOptimal) {
-        barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-        barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
-
-        src = vk::PipelineStageFlagBits::eTransfer;
-        dst = vk::PipelineStageFlagBits::eFragmentShader;
-    } else {
-        throw std::invalid_argument("unsupported layout transition!");
-    }
-    cmd.pipelineBarrier(
-        src, dst,
-        {},
-        nullptr,
-        nullptr,
-        barrier
-    );
 }

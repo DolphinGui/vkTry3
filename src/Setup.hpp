@@ -5,18 +5,22 @@
 #include <vector>
 #include <fstream>
 
-#include "ImageBundle.hpp"
+#include "vkobjects/ImageBundle.hpp"
 
 using namespace vcc;
 namespace vcc{
+class Doer;
 class Setup{
 public:
+  VCEngine* env;
+
   Setup(VCEngine* engine);
   ~Setup();
-private:
-friend class Task;
 
-  VCEngine* env;
+  
+
+private:
+friend class Doer;
 
   vk::SwapchainKHR swapChain;
   std::vector<vk::Image> swapChainImages;
@@ -30,21 +34,20 @@ friend class Task;
   vk::PipelineLayout pipelineLayout;
   vk::Pipeline graphicsPipeline;
 
-  vk::CommandPool commandPool;
-
   ImageBundle color;
   ImageBundle depth;
+
+  vk::Queue graphicsQueue;
+  vk::Queue presentQueue;
+  vk::Queue transferQueue;
 
   void createSwapChain();
   void createRenderPass();
   void createDescriptorSetLayout();
   void createGraphicsPipeline();
-  void createCommandPool();
   void createDepthResources();
   void createFramebuffers();
   
-  ImageBundle loadImage(
-    void* data, vk::Extent2D size, vk::Format format);
   vk::ShaderModule createShaderModule(const std::vector<char>& code);
   vk::ImageView createImageView(vk::Image image,
     vk::Format format, vk::ImageAspectFlags aspectFlags,
@@ -53,7 +56,7 @@ friend class Task;
     const std::vector<vk::Format>& candidates,
     vk::ImageTiling tiling,
     vk::FormatFeatureFlags features);
-  void transitionImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::Format format, vk::ImageLayout old, vk::ImageLayout neo, uint32_t mip);
+    
   static std::vector<char> readFile(const std::string& filename) {
       std::ifstream file(filename, std::ios::ate | std::ios::binary);
 

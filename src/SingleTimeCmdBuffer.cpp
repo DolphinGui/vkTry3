@@ -3,22 +3,18 @@
 namespace vcc {
 
 SingleTimeCmdBuffer::SingleTimeCmdBuffer(
-    vk::Device* dev, vk::Queue* graphics, vk::CommandPool* pool):
-    device(dev), graphicsQueue(graphics), cmdPool(pool){
-    
-    vk::CommandBufferAllocateInfo alloc(
-        *pool,
-        vk::CommandBufferLevel::ePrimary,
-        1
-    );
-    cmd = device->allocateCommandBuffers(alloc)[0];
-    
-    cmd.begin(
-        vk::CommandBufferBeginInfo(
-            vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+    const vk::Device* const dev, const vk::Queue* const graphics, const vk::CommandPool* const pool):
+    device(dev), 
+    graphicsQueue(graphics), 
+    cmdPool(pool),
+    cmd(dev->allocateCommandBuffers(
+        vk::CommandBufferAllocateInfo(
+            *pool,
+            vk::CommandBufferLevel::ePrimary,
+            1
         )
-    );
-}
+    )[0])
+    {}
 
 SingleTimeCmdBuffer::~SingleTimeCmdBuffer(){
     graphicsQueue->waitIdle();

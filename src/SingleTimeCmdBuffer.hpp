@@ -5,14 +5,14 @@
 namespace vcc{
 class SingleTimeCmdBuffer{
 public:
-    vk::CommandBuffer cmd;
-    SingleTimeCmdBuffer(vk::Device* dev, vk::Queue* graphics, vk::CommandPool* pool);
+    const vk::CommandBuffer cmd;
+    SingleTimeCmdBuffer(const vk::Device* const dev, const vk::Queue* const graphics, const vk::CommandPool* const pool);
     ~SingleTimeCmdBuffer();
     void submit();
 private:
-    vk::Device* device;
-    vk::Queue* graphicsQueue;
-    vk::CommandPool* cmdPool;
+    const vk::Device* device;
+    const vk::Queue* graphicsQueue;
+    const vk::CommandPool* cmdPool;
 };
 }
 #endif

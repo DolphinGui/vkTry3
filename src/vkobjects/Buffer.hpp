@@ -9,7 +9,6 @@ class Buffer{
 public:
 vk::UniqueBuffer buffer;
 vk::UniqueDeviceMemory mem;
-vk::Device* dev;
 Buffer(
     vcc::VCEngine* env,
     size_t size, 

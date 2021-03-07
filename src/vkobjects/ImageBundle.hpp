@@ -1,7 +1,7 @@
 #ifndef IMAGE_H_INCLUDE
 #define IMAGE_H_INCLUDE
 
-#include "VCEngine.hpp"
+#include "../VCEngine.hpp"
 #include <GLFW/glfw3.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
@@ -12,7 +12,7 @@ public:
 vk::UniqueImage image;
 vk::UniqueDeviceMemory mem;
 vk::UniqueImageView view;
-vk::Device* dev;
+const vk::Device* dev;
 ImageBundle(){};
 ImageBundle(
   uint32_t width,
@@ -29,7 +29,7 @@ ImageBundle(
 uint32_t findMemoryType(
   uint32_t typeFilter,
   vk::MemoryPropertyFlags properties,
-  vk::PhysicalDevice* physicalDevice);
+  const vk::PhysicalDevice* physicalDevice);
 };
 }
 #endif

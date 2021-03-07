@@ -19,7 +19,7 @@ ImageBundle::ImageBundle(
     VCEngine* env,
     vk::ImageAspectFlags viewAspectFlags
     ):
-dev(&env->device)
+dev(env->getDevPtr())
 {
     const vk::ImageCreateInfo imageInfo(
         {},
@@ -35,16 +35,16 @@ dev(&env->device)
         {}, {},
         vk::ImageLayout::eUndefined
     );
-    image = env->device.createImageUnique(imageInfo);
+    image = dev->createImageUnique(imageInfo);
 
     vk::MemoryRequirements memRequirements;
-    env->device.getImageMemoryRequirements(image.get(),&memRequirements);
+    dev->getImageMemoryRequirements(image.get(),&memRequirements);
     const vk::MemoryAllocateInfo allocInfo(
         memRequirements.size,
-        findMemoryType(memRequirements.memoryTypeBits, properties, &env->physicalDevice));
+        findMemoryType(memRequirements.memoryTypeBits, properties, env->getPhyDevPtr()));
 
-    mem = env->device.allocateMemoryUnique(allocInfo);
-    env->device.bindImageMemory(image.get(), mem.get(), 0);
+    mem = dev->allocateMemoryUnique(allocInfo);
+    dev->bindImageMemory(image.get(), mem.get(), 0);
 
     if(viewAspectFlags){
         const vk::ImageViewCreateInfo viewInfo(
@@ -60,14 +60,14 @@ dev(&env->device)
             0,
             1
         ));
-        view = env->device.createImageViewUnique(viewInfo);
+        view = dev->createImageViewUnique(viewInfo);
     }
 }
 
 uint32_t ImageBundle::findMemoryType(
     uint32_t typeFilter,
     vk::MemoryPropertyFlags properties,
-    vk::PhysicalDevice* physicalDevice)
+    const vk::PhysicalDevice* physicalDevice)
     {
     vk::PhysicalDeviceMemoryProperties memProperties;
     physicalDevice->getMemoryProperties(&memProperties);
