@@ -1,11 +1,13 @@
 #ifndef DOER_H_INCLUDE
 #define DOER_H_IN
 #include <bits/stdint-uintn.h>
-#include <vector>
+#include <queue>
 #include <thread>
+#include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
-#include "vulkan/vulkan.hpp"
+#include "jobs/PresentJob.hpp"
+#include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc{
 class Doer{
@@ -19,15 +21,15 @@ private:
 std::vector<
     std::pair<
         vk::CommandPool, 
-        std::vector<vk::CommandBuffer>
+        std::vector<vcc::CmdBuffer>
     >
 > commands;
+void record(const PresentJob &job);
 vk::Device* dev;
 vcc::Setup* set;
 std::thread thread;
-std::vector<void (*)(vk::CommandBuffer)> jobs;
+std::queue<PresentJob> jobs;
 
-void submit(uint32_t poolIndex, vk::SubmitInfo info);
 };
 }
 #endif

@@ -7,10 +7,10 @@
 #include <iostream>
 #include <ostream>
 
-#include "Buffer.hpp"
+#include "vkobjects/Buffer.hpp"
 #include "Setup.hpp"
 #include "data/Vertex.hpp"
-#include "ImageBundle.hpp"
+#include "vkobjects/ImageBundle.hpp"
 #include "VCEngine.hpp"
 #include "SingleTimeCmdBuffer.hpp"
 

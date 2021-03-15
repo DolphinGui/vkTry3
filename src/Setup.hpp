@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <fstream>
+#include <mutex>
 
 #include "vkobjects/ImageBundle.hpp"
 
@@ -38,6 +39,7 @@ friend class Doer;
   ImageBundle depth;
 
   vk::Queue graphicsQueue;
+  std::mutex graphicsLock;
   vk::Queue presentQueue;
   vk::Queue transferQueue;
 
