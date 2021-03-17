@@ -9,7 +9,7 @@
 #include <condition_variable>
 
 #include "VCEngine.hpp"
-#include "jobs/PresentJob.hpp"
+#include "jobs/RecordJob.hpp"
 #include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc{
@@ -29,11 +29,11 @@ struct Frame{
 std::vector<
     Frame
 > commands;
-void record(const PresentJob &job, Frame &frame);
+void record(const RecordJob &job, Frame &frame);
 vk::Device* dev;
 vcc::Setup* set;
 std::thread thread;
-std::queue<PresentJob> jobs;
+std::queue<RecordJob> jobs;
 bool alive;
 std::condition_variable deathtoll;
 };

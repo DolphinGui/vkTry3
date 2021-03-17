@@ -3,11 +3,11 @@
 #include <vulkan/vulkan.hpp>
 
 namespace vcc{
-class PresentJob{
+class RecordJob{
 public:
-const PresentJob* dependency;
+const RecordJob* dependency;
 const void (*exec)(vk::CommandBuffer);
-PresentJob(const void (*funct)(vk::CommandBuffer), const PresentJob* dep):
+RecordJob(const void (*funct)(vk::CommandBuffer), const RecordJob* dep):
     dependency(dep), exec(funct){}
 };
 }

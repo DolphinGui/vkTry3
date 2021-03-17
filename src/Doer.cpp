@@ -6,7 +6,7 @@
 #include "Doer.hpp"
 #include "Setup.hpp"
 #include "VCEngine.hpp"
-#include "src/jobs/PresentJob.hpp"
+#include "src/jobs/RecordJob.hpp"
 #include "src/vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
@@ -59,7 +59,7 @@ Doer::record(uint32_t p, uint32_t b, void (*funct)(vk::CommandBuffer c))
 };
 
 void
-Doer::record(const PresentJob& job, Frame& frame)
+Doer::record(const RecordJob& job, Frame& frame)
 {
   std::unique_lock<std::mutex> lock;
   deathtoll.wait(lock);
@@ -86,15 +86,15 @@ Doer::start()
   while (alive) {
     for (Frame f : commands) {
       while (jobs.size() != 0) {
-        // record(jobs.front());
+        record(jobs.front(), f);
         jobs.pop();
       }
       for (auto commands : commands) {
         for (auto buffer : commands.buffers) {
           if (buffer.state == bufferStates::kPending) {
-            /*set->graphicsQueue.submit(vk::SubmitInfo(
+            set->graphicsQueue.submit(vk::SubmitInfo(
 
-            ));*/
+            ));
           }
         }
       }
