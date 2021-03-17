@@ -3,7 +3,10 @@
 #include <bits/stdint-uintn.h>
 #include <queue>
 #include <thread>
+#include <vector>
 #include <vulkan/vulkan.hpp>
+#include <mutex>
+#include <condition_variable>
 
 #include "VCEngine.hpp"
 #include "jobs/PresentJob.hpp"
@@ -18,18 +21,21 @@ Doer(Setup* set, vk::Device* dev, uint32_t graphicsIndex, uint32_t poolCount, ui
 void record(uint32_t poolIndex, uint32_t bufferIndex, void (*funct)(vk::CommandBuffer c));
 void start();
 private:
+struct Frame{
+    vk::CommandPool pool;
+    std::vector<vcc::CmdBuffer> buffers;
+    std::vector<vk::Semaphore> semaphores;
+};
 std::vector<
-    std::pair<
-        vk::CommandPool, 
-        std::vector<vcc::CmdBuffer>
-    >
+    Frame
 > commands;
-void record(const PresentJob &job);
+void record(const PresentJob &job, Frame &frame);
 vk::Device* dev;
 vcc::Setup* set;
 std::thread thread;
 std::queue<PresentJob> jobs;
-
+bool alive;
+std::condition_variable deathtoll;
 };
 }
 #endif

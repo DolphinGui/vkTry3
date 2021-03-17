@@ -3,10 +3,7 @@
 #include <vulkan/vulkan.hpp>
 
 namespace vcc {
-
-struct CmdBuffer
-{
-  enum struct states
+enum struct bufferStates
   {
     kInitial,
     kRecording,
@@ -14,13 +11,14 @@ struct CmdBuffer
     kPending,
     kInvalid
   };
-
+struct CmdBuffer
+{
   vk::CommandBuffer cmd;
-  states state;
+  bufferStates state;
   operator vk::CommandBuffer() { return cmd; }
   CmdBuffer(vk::CommandBuffer commands):
   cmd(commands),
-  state(states::kInitial){}
+  state(bufferStates::kInitial){}
 };
 }
 

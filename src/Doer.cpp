@@ -1,4 +1,5 @@
 #include <bits/stdint-uintn.h>
+#include <mutex>
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
@@ -28,54 +29,77 @@ Doer::Doer(vcc::Setup* s,
     std::vector holder(dev->allocateCommandBuffers(
       vk::CommandBufferAllocateInfo(p, vk::CommandBufferLevel::ePrimary, b)));
     commands.push_back(
-      std::pair(p, std::vector<vcc::CmdBuffer>(holder.begin(), holder.end())));
+      Frame{ p, std::vector<vcc::CmdBuffer>(holder.begin(), holder.end()) }
+      // Not sure if copying commandBuffer is legal here.
+    );
   }
 }
 
 Doer::~Doer()
 {
+  alive = false;
   for (auto p : commands) {
     dev->freeCommandBuffers(
-      p.first,
-      std::vector<vk::CommandBuffer>(p.second.begin(), p.second.end()));
-  }
-  for (auto p : commands) {
-    dev->destroyCommandPool(p.first);
+      p.pool,
+      std::vector<vk::CommandBuffer>(p.buffers.begin(), p.buffers.end()));
+    dev->destroyCommandPool(p.pool);
+    for (auto s : p.semaphores) {
+      dev->destroySemaphore(s);
+    }
   }
 }
 void
 Doer::record(uint32_t p, uint32_t b, void (*funct)(vk::CommandBuffer c))
 {
-  static_cast<vk::CommandBuffer>(commands[p].second[b])
+  static_cast<vk::CommandBuffer>(commands[p].buffers[b])
     .begin(vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-  funct(commands[p].second[b]);
-  static_cast<vk::CommandBuffer>(commands[p].second[b]).end();
+  funct(commands[p].buffers[b]);
+  static_cast<vk::CommandBuffer>(commands[p].buffers[b]).end();
 };
 
 void
-Doer::record(const PresentJob& job)
+Doer::record(const PresentJob& job, Frame& frame)
 {
+  std::unique_lock<std::mutex> lock;
+  deathtoll.wait(lock);
   if (!job.dependency) {
-    record(*job.dependency);
+    record(*job.dependency, frame);
     // put semaphore
+    frame.semaphores.push_back(dev->createSemaphore(vk::SemaphoreCreateInfo()));
   }
-  // job.exec()
+  for (auto buffer : frame.buffers) {
+    if (buffer.state == bufferStates::kInitial) {
+      buffer.cmd.begin(vk::CommandBufferBeginInfo());
+      buffer.state = bufferStates::kRecording;
+      job.exec(buffer);
+      buffer.cmd.end();
+      buffer.state = bufferStates::kPending;
+      return;
+    }
+  }
 }
 
 void
 Doer::start()
 {
-  while (jobs.size() != 0) {
-    record(jobs.front());
-    jobs.pop();
-  }
-  for(auto commands : commands){
-    for(auto buffer : commands.second){
-      if(buffer.state == CmdBuffer::states::kExecutable){
-        //set->graphicsQueue.submit(vk::SubmitInfo())
+  while (alive) {
+    for (Frame f : commands) {
+      while (jobs.size() != 0) {
+        // record(jobs.front());
+        jobs.pop();
+      }
+      for (auto commands : commands) {
+        for (auto buffer : commands.buffers) {
+          if (buffer.state == bufferStates::kPending) {
+            /*set->graphicsQueue.submit(vk::SubmitInfo(
+
+            ));*/
+          }
+        }
       }
     }
   }
+  deathtoll.notify_all();
 }
 }
