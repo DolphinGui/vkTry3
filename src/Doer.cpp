@@ -1,43 +1,46 @@
+#include <algorithm>
 #include <bits/stdint-uintn.h>
+#include <exception>
 #include <mutex>
+#include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
 #include "Doer.hpp"
-#include "Setup.hpp"
 #include "VCEngine.hpp"
+#include "src/jobs/PresentJob.hpp"
 #include "src/jobs/RecordJob.hpp"
 #include "src/vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
-Doer::Doer(vcc::Setup* s,
-           vk::Device* d,
-           uint32_t graphicsIndex,
-           uint32_t poolCount,
-           uint32_t b)
-  : dev(d)
-  , set(s)
+template<int T>
+Doer<T>::Doer(vk::Queue& g,
+              vk::Device& d,
+              uint32_t graphicsIndex,
+              uint32_t poolCount,
+              uint32_t b)
+  : dev(&d)
+  , graphics(&g)
 {
 
-  for (int i = 0; i < poolCount; i++) {
+  for (auto i = commands.begin(); i != commands.end(); i++) {
     vk::CommandPoolCreateInfo poolInfo{};
     poolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
     poolInfo.queueFamilyIndex = graphicsIndex;
     vk::CommandPool p;
-    if (d->createCommandPool(&poolInfo, nullptr, &p) != vk::Result::eSuccess)
+    if (d.createCommandPool(&poolInfo, nullptr, &p) != vk::Result::eSuccess)
       throw std::runtime_error("failed to create command pool");
-    std::vector holder(dev->allocateCommandBuffers(
-      vk::CommandBufferAllocateInfo(p, vk::CommandBufferLevel::ePrimary, b)));
-    commands.push_back(
-      Frame{ p, std::vector<vcc::CmdBuffer>(holder.begin(), holder.end()) }
-      // Not sure if copying commandBuffer is legal here.
-    );
+    *i = Frame(p,
+               dev->allocateCommandBuffers(vk::CommandBufferAllocateInfo(
+                 p, vk::CommandBufferLevel::ePrimary, b)));
   }
 }
-
-Doer::~Doer()
+template<int T>
+Doer<T>::~Doer()
 {
   alive = false;
+  std::unique_lock<std::mutex> lock;
+  deathtoll.wait(lock);
   for (auto p : commands) {
     dev->freeCommandBuffers(
       p.pool,
@@ -48,26 +51,13 @@ Doer::~Doer()
     }
   }
 }
-void
-Doer::record(uint32_t p, uint32_t b, void (*funct)(vk::CommandBuffer c))
+template<int T>
+vcc::PresentJob
+Doer<T>::record(const RecordJob& job, Frame& frame)
 {
-  static_cast<vk::CommandBuffer>(commands[p].buffers[b])
-    .begin(vk::CommandBufferBeginInfo(
-      vk::CommandBufferUsageFlagBits::eOneTimeSubmit));
-  funct(commands[p].buffers[b]);
-  static_cast<vk::CommandBuffer>(commands[p].buffers[b]).end();
-};
-
-void
-Doer::record(const RecordJob& job, Frame& frame)
-{
-  std::unique_lock<std::mutex> lock;
-  deathtoll.wait(lock);
-  if (!job.dependency) {
-    record(*job.dependency, frame);
-    // put semaphore
-    frame.semaphores.push_back(dev->createSemaphore(vk::SemaphoreCreateInfo()));
-  }
+  PresentJob dependency;
+  if (!job.dependency)
+    dependency = record(*job.dependency, frame);
   for (auto buffer : frame.buffers) {
     if (buffer.state == bufferStates::kInitial) {
       buffer.cmd.begin(vk::CommandBufferBeginInfo());
@@ -75,29 +65,48 @@ Doer::record(const RecordJob& job, Frame& frame)
       job.exec(buffer);
       buffer.cmd.end();
       buffer.state = bufferStates::kPending;
-      return;
+      return PresentJob(buffer, dependency);
     }
   }
+  throw std::runtime_error("not enough buffers allocated");
 }
-
+template<int T>
 void
-Doer::start()
+Doer<T>::present(const std::vector<PresentJob>& jobs,
+                 const Frame& f,
+                 const vk::Semaphore& s)
 {
+  std::vector<PresentJob*> dependents;
+  std::vector<vk::CommandBuffer*> buffers;
+  for (auto job : jobs) {
+    dependents.push_back(job.dependent);
+    buffers.push_back(&job.commands->cmd);
+  }
+  vk::Semaphore sem;
+  int semaphoreCount = 0;
+  if (dependents.size() != 0) {
+    sem = dev->createSemaphore(vk::SemaphoreCreateInfo());
+    f.semaphores.push_back(sem);
+    semaphoreCount = 1;
+  }
+  int waitCount = (s) ? 1 : 0;
+  graphics->submit(vk::SubmitInfo(
+    waitCount, &s, {}, buffers.size(), buffers[0], semaphoreCount, &sem));
+  if (dependents.size() != 0)
+    present(dependents, f, sem);
+}
+template<int T>
+void
+Doer<T>::start()
+{
+  std::vector<vcc::PresentJob> jobs;
   while (alive) {
-    for (Frame f : commands) {
-      while (jobs.size() != 0) {
-        record(jobs.front(), f);
-        jobs.pop();
+    for (Frame frame : commands) {
+      while (records.size() != 0) {
+        jobs.push_back(record(records.front(), frame));
+        records.pop();
       }
-      for (auto commands : commands) {
-        for (auto buffer : commands.buffers) {
-          if (buffer.state == bufferStates::kPending) {
-            set->graphicsQueue.submit(vk::SubmitInfo(
-
-            ));
-          }
-        }
-      }
+      present(jobs, frame, nullptr);
     }
   }
   deathtoll.notify_all();
