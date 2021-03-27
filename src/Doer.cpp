@@ -1,24 +1,36 @@
 #include <algorithm>
+#include <array>
 #include <bits/stdint-uintn.h>
 #include <exception>
 #include <mutex>
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_core.h>
 
 #include "Doer.hpp"
 #include "VCEngine.hpp"
-#include "src/jobs/PresentJob.hpp"
-#include "src/jobs/RecordJob.hpp"
-#include "src/vkobjects/CmdBuffer.hpp"
+#include "jobs/PresentJob.hpp"
+#include "jobs/RecordJob.hpp"
+#include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
+
 template<int T>
-Doer<T>::Doer(vk::Queue& g,
+std::array<vk::CommandPool, T>
+allocCommandBuffersStatic(const vk::Device& device, vk::CommandBufferAllocateInfo info)
+{
+  static_assert(T==info.commandBufferCount, "allocCommandBuffersStatic has incorrect info");
+  std::array<vk::CommandPool, T> results;
+  vkAllocateCommandBuffers(device, info, results);
+  return results;
+}
+
+template<int T, int U, int V>
+Doer<T, U, V>::Doer(vk::Queue& g,
               vk::Device& d,
               uint32_t graphicsIndex,
-              uint32_t poolCount,
-              uint32_t b)
+              uint32_t poolCount)
   : dev(&d)
   , graphics(&g)
 {
@@ -31,12 +43,12 @@ Doer<T>::Doer(vk::Queue& g,
     if (d.createCommandPool(&poolInfo, nullptr, &p) != vk::Result::eSuccess)
       throw std::runtime_error("failed to create command pool");
     *i = Frame(p,
-               dev->allocateCommandBuffers(vk::CommandBufferAllocateInfo(
-                 p, vk::CommandBufferLevel::ePrimary, b)));
+               allocCommandBuffersStatic<U>(d, vk::CommandBufferAllocateInfo(
+                 p, vk::CommandBufferLevel::ePrimary, U)));
   }
 }
-template<int T>
-Doer<T>::~Doer()
+template<int T, int U, int V>
+Doer<T, U, V>::~Doer()
 {
   alive = false;
   std::unique_lock<std::mutex> lock;
@@ -51,9 +63,9 @@ Doer<T>::~Doer()
     }
   }
 }
-template<int T>
+template<int T, int U, int V>
 vcc::PresentJob
-Doer<T>::record(const RecordJob& job, Frame& frame)
+Doer<T, U, V>::record(const RecordJob& job, Frame<U, V>& frame)
 {
   PresentJob dependency;
   if (!job.dependency)
@@ -70,10 +82,10 @@ Doer<T>::record(const RecordJob& job, Frame& frame)
   }
   throw std::runtime_error("not enough buffers allocated");
 }
-template<int T>
+template<int T, int U, int V>
 void
-Doer<T>::present(const std::vector<PresentJob>& jobs,
-                 const Frame& f,
+Doer<T, U, V>::present(const std::vector<PresentJob>& jobs,
+                 const Frame<U, V>& f,
                  const vk::Semaphore& s)
 {
   std::vector<PresentJob*> dependents;
@@ -95,9 +107,9 @@ Doer<T>::present(const std::vector<PresentJob>& jobs,
   if (dependents.size() != 0)
     present(dependents, f, sem);
 }
-template<int T>
+template<int T, int U, int V>
 void
-Doer<T>::start()
+Doer<T, U, V>::start()
 {
   std::vector<vcc::PresentJob> jobs;
   while (alive) {

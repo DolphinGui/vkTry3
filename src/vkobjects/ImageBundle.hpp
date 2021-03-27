@@ -1,10 +1,11 @@
 #ifndef IMAGE_H_INCLUDE
 #define IMAGE_H_INCLUDE
 
-#include "../VCEngine.hpp"
 #include <GLFW/glfw3.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
+
+#include "VCEngine.hpp"
 
 namespace vcc{
 class ImageBundle{

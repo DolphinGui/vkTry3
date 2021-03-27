@@ -4,7 +4,7 @@
 #include <memory>
 #include <vulkan/vulkan.hpp>
 
-#include "src/vkobjects/CmdBuffer.hpp"
+#include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
 struct PresentJob
