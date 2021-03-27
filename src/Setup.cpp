@@ -32,6 +32,7 @@ Setup::Setup(VCEngine* engine):
     createDescriptorSetLayout();
     createGraphicsPipeline();
     QueueFamilyIndices queueFamilyIndices = env->findQueueFamilies(*env->getPhyDevPtr());
+    std::cout << queueFamilyIndices.info() << std::endl;
     graphicsQueue = engine->getDevPtr()->getQueue(0, queueFamilyIndices.graphicsFamily.value());
     presentQueue =  engine->getDevPtr()->getQueue(0, queueFamilyIndices.presentFamily.value());
     presentQueue =  engine->getDevPtr()->getQueue(0, queueFamilyIndices.transferFamily.value());
@@ -249,8 +250,8 @@ vk::ImageView Setup::createImageView(
 }
 
 void Setup::createGraphicsPipeline() {
-    auto vertShaderCode = readFile("shaders/vert.spv");
-    auto fragShaderCode = readFile("shaders/frag.spv");
+    auto vertShaderCode = readFile("../shaders/vert.spv");
+    auto fragShaderCode = readFile("../shaders/frag.spv");
 
     vk::ShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     vk::ShaderModule fragShaderModule = createShaderModule(fragShaderCode);

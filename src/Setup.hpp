@@ -59,6 +59,7 @@ friend class Doer<3, 2, 1>;
     vk::ImageTiling tiling,
     vk::FormatFeatureFlags features);
     
+  //TODO: change this to std::byte at some point
   static std::vector<char> readFile(const std::string& filename) {
       std::ifstream file(filename, std::ios::ate | std::ios::binary);
 

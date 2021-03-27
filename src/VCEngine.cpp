@@ -148,13 +148,33 @@ void VCEngine::createLogicalDevice() {
     device.getQueue(indices.presentFamily.value(), 0, &presentQueue);
 }
 
+#ifndef NDEBUG
+std::string getFamilyFlags(const vk::QueueFlags& flags){
+  std::string results("Flags: ");
+  if(flags & vk::QueueFlagBits::eCompute){
+    results += "eCompute, ";
+  }
+  if(flags & vk::QueueFlagBits::eGraphics){
+    results += "eGraphics, ";
+  }
+  if(flags & vk::QueueFlagBits::eTransfer){
+    results += "eTransfer, ";
+  }
+  return results;
+}
+#endif
+
 QueueFamilyIndices VCEngine::findQueueFamilies(vk::PhysicalDevice device) const {
   QueueFamilyIndices indices;
 
   std::vector<vk::QueueFamilyProperties> queueFamilies(device.getQueueFamilyProperties());
-
   int i = 0;
   for (const auto &queueFamily : queueFamilies) {
+
+#ifndef NDEBUG
+    std::cout<< getFamilyFlags(queueFamily.queueFlags) <<std::endl;
+#endif
+
       if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
           indices.graphicsFamily = i;
       }
