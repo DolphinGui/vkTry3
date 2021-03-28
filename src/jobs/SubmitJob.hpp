@@ -7,21 +7,21 @@
 #include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
-struct PresentJob
+struct SubmitJob
 {
 public:
   
-  PresentJob* dependent;//change this to support multiple dependencies later
+  SubmitJob* dependent;//change this to support multiple dependencies later
   vcc::CmdBuffer* commands;
-  PresentJob(vcc::CmdBuffer& buffer)
+  SubmitJob(vcc::CmdBuffer& buffer)
     : dependent(nullptr)
     , commands(&buffer)
   {}
-  PresentJob(vcc::CmdBuffer& buffer, PresentJob& depend)
+  SubmitJob(vcc::CmdBuffer& buffer, SubmitJob& depend)
     : dependent(&depend)
     , commands(&buffer)
   {}
-  PresentJob(){}
+  SubmitJob(){}
 };
 }
 #endif

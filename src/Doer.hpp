@@ -9,7 +9,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
-#include "jobs/PresentJob.hpp"
+#include "jobs/SubmitJob.hpp"
 #include "jobs/RecordJob.hpp"
 #include "vkobjects/CmdBuffer.hpp"
 
@@ -45,12 +45,12 @@ private:
     }
   };
   std::array<Frame, T> commands;
-  vcc::PresentJob record(const RecordJob& job, Frame& frame);
-  void present(const std::vector<PresentJob>& jobs,
+  vcc::SubmitJob record(const RecordJob& job, Frame& frame);
+  void present(const std::vector<SubmitJob>& jobs,
                const Frame& frame,
                const vk::Semaphore& semaphore);
-  void allocBuffers(const std::vector<PresentJob>& jobs, const Frame& frame);
-  static int countDependencies(const PresentJob& job);
+  void allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame);
+  static int countDependencies(const SubmitJob& job);
   vk::Device* dev;
   vk::Queue* graphics;
   std::thread thread;

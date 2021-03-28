@@ -10,7 +10,7 @@
 
 #include "Doer.hpp"
 #include "VCEngine.hpp"
-#include "jobs/PresentJob.hpp"
+#include "jobs/SubmitJob.hpp"
 #include "jobs/RecordJob.hpp"
 #include "vkobjects/CmdBuffer.hpp"
 
@@ -57,7 +57,7 @@ Doer<T>::~Doer()
 
 template<int T>
 void
-Doer<T>::allocBuffers(const std::vector<PresentJob>& jobs, const Frame& frame)
+Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
 {
   int bufferCount(0);
   for (auto job : jobs) {
@@ -80,7 +80,7 @@ Doer<T>::allocBuffers(const std::vector<PresentJob>& jobs, const Frame& frame)
 // but I'm also pretty sure it doesn't matter too much.
 template<int T>
 int
-Doer<T>::countDependencies(const PresentJob& job)
+Doer<T>::countDependencies(const SubmitJob& job)
 {
   if (job.dependent)
     return countDependencies(*job.dependent) + 1;
@@ -88,10 +88,10 @@ Doer<T>::countDependencies(const PresentJob& job)
 }
 
 template<int T>
-vcc::PresentJob
+vcc::SubmitJob
 Doer<T>::record(const RecordJob& job, Frame& frame)
 {
-  PresentJob dependency;
+  SubmitJob dependency;
   if (!job.dependency)
     dependency = record(*job.dependency, frame);
   for (auto buffer : frame.buffers) {
@@ -101,18 +101,18 @@ Doer<T>::record(const RecordJob& job, Frame& frame)
       job.exec(buffer);
       buffer.cmd.end();
       buffer.state = bufferStates::kPending;
-      return PresentJob(buffer, dependency);
+      return SubmitJob(buffer, dependency);
     }
   }
   throw std::runtime_error("not enough buffers allocated");
 }
 template<int T>
 void
-Doer<T>::present(const std::vector<PresentJob>& jobs,
+Doer<T>::present(const std::vector<SubmitJob>& jobs,
                  const Frame& f,
                  const vk::Semaphore& s)
 {
-  std::vector<PresentJob*> dependents;
+  std::vector<SubmitJob*> dependents;
   std::vector<vk::CommandBuffer*> buffers;
   for (auto job : jobs) {
     dependents.push_back(job.dependent);
@@ -141,7 +141,7 @@ template<int T>
 void
 Doer<T>::start()
 {
-  std::vector<vcc::PresentJob> jobs;
+  std::vector<vcc::SubmitJob> jobs;
   while (alive) {
     for (Frame frame : commands) {
       while (records.size() != 0) {
