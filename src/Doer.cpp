@@ -17,17 +17,7 @@
 namespace vcc {
 
 template<int T>
-std::array<vk::CommandPool, T>
-allocCommandBuffersStatic(const vk::Device& device, vk::CommandBufferAllocateInfo info)
-{
-  static_assert(T==info.commandBufferCount, "allocCommandBuffersStatic has incorrect info");
-  std::array<vk::CommandPool, T> results;
-  vkAllocateCommandBuffers(device, info, results);
-  return results;
-}
-
-template<int T, int U, int V>
-Doer<T, U, V>::Doer(vk::Queue& g,
+Doer<T>::Doer(vk::Queue& g,
               vk::Device& d,
               uint32_t graphicsIndex,
               uint32_t poolCount)
@@ -42,30 +32,64 @@ Doer<T, U, V>::Doer(vk::Queue& g,
     vk::CommandPool p;
     if (d.createCommandPool(&poolInfo, nullptr, &p) != vk::Result::eSuccess)
       throw std::runtime_error("failed to create command pool");
-    *i = Frame(p,
-               allocCommandBuffersStatic<U>(d, vk::CommandBufferAllocateInfo(
-                 p, vk::CommandBufferLevel::ePrimary, U)));
+    Frame f = Frame(p);
+    f.submitted = dev->createFence(vk::FenceCreateInfo());
+    *i = f;
   }
 }
-template<int T, int U, int V>
-Doer<T, U, V>::~Doer()
+template<int T>
+Doer<T>::~Doer()
 {
   alive = false;
   std::unique_lock<std::mutex> lock;
   deathtoll.wait(lock);
-  for (auto p : commands) {
+  for (Frame f : commands) {
+    dev->destroyFence(f.submitted);
     dev->freeCommandBuffers(
-      p.pool,
-      std::vector<vk::CommandBuffer>(p.buffers.begin(), p.buffers.end()));
-    dev->destroyCommandPool(p.pool);
-    for (auto s : p.semaphores) {
+      f.pool,
+      std::vector<vk::CommandBuffer>(f.buffers.begin(), f.buffers.end()));
+    dev->destroyCommandPool(f.pool);
+    for (auto s : f.semaphores) {
       dev->destroySemaphore(s);
     }
   }
 }
-template<int T, int U, int V>
+
+template<int T>
+void
+Doer<T>::allocBuffers(const std::vector<PresentJob>& jobs, const Frame& frame)
+{
+  int bufferCount(0);
+  for (auto job : jobs) {
+    bufferCount += countDependencies(job);
+  }
+  int buffersToAlloc(bufferCount - frame.buffers.size);
+  if (buffersToAlloc >
+      0) { // TODO: Add support for secondary command buffers later
+    dev->allocateCommandBuffers(vk::CommandBufferAllocateInfo(
+      frame.pool, vk::CommandBufferLevel::ePrimary, buffersToAlloc));
+  }
+  dev->waitForFences(frame.submitted);
+  for (vcc::CmdBuffer c : frame.buffers) {
+    if (c.state != vcc::bufferStates::kInitial) {
+      c.cmd.reset(); // determine later if resources should be released
+    }
+  }
+}
+// I'm sure there's a way to do this compiletime,
+// but I'm also pretty sure it doesn't matter too much.
+template<int T>
+int
+Doer<T>::countDependencies(const PresentJob& job)
+{
+  if (job.dependent)
+    return countDependencies(*job.dependent) + 1;
+  return 1;
+}
+
+template<int T>
 vcc::PresentJob
-Doer<T, U, V>::record(const RecordJob& job, Frame<U, V>& frame)
+Doer<T>::record(const RecordJob& job, Frame& frame)
 {
   PresentJob dependency;
   if (!job.dependency)
@@ -82,10 +106,10 @@ Doer<T, U, V>::record(const RecordJob& job, Frame<U, V>& frame)
   }
   throw std::runtime_error("not enough buffers allocated");
 }
-template<int T, int U, int V>
+template<int T>
 void
-Doer<T, U, V>::present(const std::vector<PresentJob>& jobs,
-                 const Frame<U, V>& f,
+Doer<T>::present(const std::vector<PresentJob>& jobs,
+                 const Frame& f,
                  const vk::Semaphore& s)
 {
   std::vector<PresentJob*> dependents;
@@ -102,19 +126,26 @@ Doer<T, U, V>::present(const std::vector<PresentJob>& jobs,
     semaphoreCount = 1;
   }
   int waitCount = (s) ? 1 : 0;
-  graphics->submit(vk::SubmitInfo(
-    waitCount, &s, {}, buffers.size(), buffers[0], semaphoreCount, &sem));
-  if (dependents.size() != 0)
+
+  if (dependents.size() != 0) {
+    graphics->submit(vk::SubmitInfo(
+      waitCount, &s, {}, buffers.size(), buffers[0], semaphoreCount, &sem));
     present(dependents, f, sem);
+  }
+  graphics->submit(
+    vk::SubmitInfo(
+      waitCount, &s, {}, buffers.size(), buffers[0], semaphoreCount, &sem),
+    f.submitted);
 }
-template<int T, int U, int V>
+template<int T>
 void
-Doer<T, U, V>::start()
+Doer<T>::start()
 {
   std::vector<vcc::PresentJob> jobs;
   while (alive) {
     for (Frame frame : commands) {
       while (records.size() != 0) {
+        allocBuffers(records.front(), frame);
         jobs.push_back(record(records.front(), frame));
         records.pop();
       }

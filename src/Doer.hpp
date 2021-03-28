@@ -18,7 +18,7 @@ namespace vcc {
   U is the amount of command buffers
   V is the amount of semaphores allowed
 */
-template<int T, int U, int V>
+template<int T>
 class Doer
 {
 
@@ -31,24 +31,26 @@ public:
   void start();
 
 private:
-  template<int A, int B>
   struct Frame
   {
     vk::CommandPool pool;
+    vk::Fence submitted;
     std::vector<vcc::CmdBuffer> buffers;
     std::queue<vk::Semaphore> semaphores;
     Frame(vk::CommandPool pool,
-          std::array<vcc::CmdBuffer, A> buffers,
-          std::array<vk::Semaphore, B> semaphores)
+          std::vector<vcc::CmdBuffer> buffers,
+          std::vector<vk::Semaphore> semaphores)
     {
       this->pool = pool, this->buffers = buffers, this->semaphores = semaphores;
     }
   };
-  std::array<Frame<U, V>, T> commands;
-  vcc::PresentJob record(const RecordJob& job, Frame<U, V>& frame);
+  std::array<Frame, T> commands;
+  vcc::PresentJob record(const RecordJob& job, Frame& frame);
   void present(const std::vector<PresentJob>& jobs,
-               const Frame<U, V>& frame,
+               const Frame& frame,
                const vk::Semaphore& semaphore);
+  void allocBuffers(const std::vector<PresentJob>& jobs, const Frame& frame);
+  static int countDependencies(const PresentJob& job);
   vk::Device* dev;
   vk::Queue* graphics;
   std::thread thread;
