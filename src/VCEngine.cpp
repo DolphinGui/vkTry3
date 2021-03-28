@@ -122,11 +122,8 @@ VCEngine::createLogicalDevice()
 
   float queuePriority = 1.0f;
   for (uint32_t queueFamily : uniqueQueueFamilies) {
-    VkDeviceQueueCreateInfo queueCreateInfo{};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = queueFamily;
-    queueCreateInfo.queueCount = 1;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+    vk::DeviceQueueCreateInfo queueCreateInfo(
+      {}, queueFamily, 2, &queuePriority);
     queueCreateInfos.push_back(queueCreateInfo);
   }
 
@@ -216,7 +213,7 @@ VCEngine::findQueueFamilies(vk::PhysicalDevice device) const
     i++;
   }
 #ifndef NDEBUG
-  std::cout<< indices.info() << std::endl;
+  std::cout << "VCEngine::findQueueFamilies:  "<< indices.info() << std::endl;
 #endif
   return indices;
 }
