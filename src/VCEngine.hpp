@@ -1,6 +1,7 @@
 #ifndef VCENNGINE_H_INCLUDE
 #define VCENNGINE_H_INCLUDE
 #include <GLFW/glfw3.h>
+#include <array>
 #include <string>
 #include <vulkan/vulkan.hpp>
 
@@ -26,14 +27,23 @@ struct QueueFamilyIndices
     return graphicsFamily.has_value() && presentFamily.has_value() &&
            transferFamily.has_value();
   }
+#ifndef NDEBUG
   std::string info()
   {
-    if (!isComplete())
-      return "Incomplete";
-    return "Graphics: " + std::to_string(graphicsFamily.value()) + "\n" +
-           "Present: " + std::to_string(presentFamily.value()) + "\n" +
-           "Transfer: " + std::to_string(transferFamily.value()) + "\n";
+    std::string results("Family Indicies: ");
+    std::array<std::string, 3> familyNames(
+      { "graphics", "present", "transfer" });
+    auto inc = familyNames.begin();
+    for (std::optional<uint32_t> o :
+         { graphicsFamily, presentFamily, transferFamily }) {
+      if (o.has_value())
+        results += *inc++ + ": " + std::to_string(o.value()) + ", ";
+      else
+        inc++;
+    }
+    return results;
   }
+#endif
 };
 class Setup;
 class VCEngine
