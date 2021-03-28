@@ -19,15 +19,15 @@ namespace vcc {
   V is the amount of semaphores allowed
 */
 template<int T>
-class Doer
+class Renderer
 {
 
 public:
-  Doer(vk::Queue& graphics,
+  Renderer(vk::Queue& graphics,
        vk::Device& dev,
        uint32_t graphicsIndex,
        uint32_t poolCount);
-  ~Doer();
+  ~Renderer();
   void start();
 
 private:

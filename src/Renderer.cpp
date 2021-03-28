@@ -8,16 +8,16 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
-#include "Doer.hpp"
+#include "Renderer.hpp"
 #include "VCEngine.hpp"
-#include "jobs/SubmitJob.hpp"
 #include "jobs/RecordJob.hpp"
+#include "jobs/SubmitJob.hpp"
 #include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
 
 template<int T>
-Doer<T>::Doer(vk::Queue& g,
+Renderer<T>::Renderer(vk::Queue& g,
               vk::Device& d,
               uint32_t graphicsIndex,
               uint32_t poolCount)
@@ -38,7 +38,7 @@ Doer<T>::Doer(vk::Queue& g,
   }
 }
 template<int T>
-Doer<T>::~Doer()
+Renderer<T>::~Renderer()
 {
   alive = false;
   std::unique_lock<std::mutex> lock;
@@ -57,7 +57,7 @@ Doer<T>::~Doer()
 
 template<int T>
 void
-Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
+Renderer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
 {
   int bufferCount(0);
   for (auto job : jobs) {
@@ -70,7 +70,7 @@ Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
       frame.pool, vk::CommandBufferLevel::ePrimary, buffersToAlloc));
   }
   dev->waitForFences(frame.submitted);
-  for (vcc::CmdBuffer c : frame.buffers) {
+  for (vcc::CmdBuffer& c : frame.buffers) {
     if (c.state != vcc::bufferStates::kInitial) {
       c.cmd.reset(); // determine later if resources should be released
     }
@@ -80,7 +80,7 @@ Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
 // but I'm also pretty sure it doesn't matter too much.
 template<int T>
 int
-Doer<T>::countDependencies(const SubmitJob& job)
+Renderer<T>::countDependencies(const SubmitJob& job)
 {
   if (job.dependent)
     return countDependencies(*job.dependent) + 1;
@@ -89,7 +89,7 @@ Doer<T>::countDependencies(const SubmitJob& job)
 
 template<int T>
 vcc::SubmitJob
-Doer<T>::record(const RecordJob& job, Frame& frame)
+Renderer<T>::record(const RecordJob& job, Frame& frame)
 {
   SubmitJob dependency;
   if (!job.dependency)
@@ -108,7 +108,7 @@ Doer<T>::record(const RecordJob& job, Frame& frame)
 }
 template<int T>
 void
-Doer<T>::present(const std::vector<SubmitJob>& jobs,
+Renderer<T>::present(const std::vector<SubmitJob>& jobs,
                  const Frame& f,
                  const vk::Semaphore& s)
 {
@@ -139,7 +139,7 @@ Doer<T>::present(const std::vector<SubmitJob>& jobs,
 }
 template<int T>
 void
-Doer<T>::start()
+Renderer<T>::start()
 {
   std::vector<vcc::SubmitJob> jobs;
   while (alive) {

@@ -7,7 +7,7 @@
 #include <mutex>
 
 #include "vkobjects/ImageBundle.hpp"
-#include "Doer.hpp"
+#include "Renderer.hpp"
 
 using namespace vcc;
 namespace vcc{
@@ -21,7 +21,7 @@ public:
   
 
 private:
-friend class Doer<3>;
+friend class Renderer<3>;
 
   vk::SwapchainKHR swapChain;
   std::vector<vk::Image> swapChainImages;
