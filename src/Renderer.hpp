@@ -1,5 +1,5 @@
-#ifndef DOER_H_INCLUDE
-#define DOER_H_IN
+#ifndef RENDERER_H_INCLUDE
+#define RENDERER_H_INCLUDE
 #include <bits/stdint-uintn.h>
 #include <condition_variable>
 #include <mutex>
@@ -12,6 +12,7 @@
 #include "jobs/SubmitJob.hpp"
 #include "jobs/RecordJob.hpp"
 #include "vkobjects/CmdBuffer.hpp"
+#include "Doer.hpp"
 
 namespace vcc {
 /* T is the amount of frames in flight,
@@ -19,7 +20,7 @@ namespace vcc {
   V is the amount of semaphores allowed
 */
 template<int T>
-class Renderer
+class Renderer: vcc::Doer
 {
 
 public:
@@ -29,6 +30,7 @@ public:
        uint32_t poolCount);
   ~Renderer();
   void start();
+  void submit(RecordJob record);
 
 private:
   struct Frame

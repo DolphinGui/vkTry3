@@ -18,11 +18,10 @@ namespace vcc {
 
 template<int T>
 Renderer<T>::Renderer(vk::Queue& g,
-              vk::Device& d,
-              uint32_t graphicsIndex,
-              uint32_t poolCount)
-  : dev(&d)
-  , graphics(&g)
+                      vk::Device& d,
+                      uint32_t graphicsIndex,
+                      uint32_t poolCount)
+  : Doer(g, d, graphicsIndex)
 {
 
   for (auto i = commands.begin(); i != commands.end(); i++) {
@@ -57,7 +56,15 @@ Renderer<T>::~Renderer()
 
 template<int T>
 void
-Renderer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
+Renderer<T>::submit(RecordJob record)
+{
+  records.push(record);
+}
+
+template<int T>
+void
+Renderer<T>::allocBuffers(const std::vector<SubmitJob>& jobs,
+                          const Frame& frame)
 {
   int bufferCount(0);
   for (auto job : jobs) {
@@ -109,8 +116,8 @@ Renderer<T>::record(const RecordJob& job, Frame& frame)
 template<int T>
 void
 Renderer<T>::present(const std::vector<SubmitJob>& jobs,
-                 const Frame& f,
-                 const vk::Semaphore& s)
+                     const Frame& f,
+                     const vk::Semaphore& s)
 {
   std::vector<SubmitJob*> dependents;
   std::vector<vk::CommandBuffer*> buffers;

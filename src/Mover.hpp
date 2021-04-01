@@ -1,16 +1,20 @@
 #ifndef MOVER_H_INCLUDE
 #define MOVER_H_INCLUDE
-#include "VCEngine.hpp"
 #include <vulkan/vulkan.hpp>
-namespace vcc{
-class Mover{
+
+#include "Doer.hpp"
+#include "VCEngine.hpp"
+
+namespace vcc {
+class Mover : vcc::Doer
+{
 
 public:
-Mover(VCEngine* e);
-~Mover();
+  Mover(vk::Queue& g, vk::Device& d, uint32_t graphicsIndex);
+  ~Mover();
 
 private:
-vk::CommandPool pool;
+  vk::CommandPool pool;
 };
 }
 #endif
