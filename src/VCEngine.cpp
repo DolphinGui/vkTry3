@@ -1,18 +1,14 @@
-#include <bits/stdint-uintn.h>
-#include <string>
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#define VMA_IMPLEMENTATION
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#include "VulkanMemoryAllocator/src/VmaUsage.h"
 
 #include <algorithm>
 #include <array>
+#include <bits/stdint-uintn.h>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -25,6 +21,7 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "Setup.hpp"
@@ -76,6 +73,15 @@ VCEngine::VCEngine(int width, int height, const char* name)
   physProps = physicalDevice.getMemoryProperties();
 
   dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr, device);
+  
+  VmaAllocatorCreateInfo allocInfo{};
+  allocInfo.vulkanApiVersion = vkVersion;
+  allocInfo.physicalDevice = physicalDevice;
+  allocInfo.device = device;
+  allocInfo.instance = instance;
+  
+  vmaCreateAllocator(&allocInfo, &vmaAlloc);
+
 }
 
 VCEngine::~VCEngine()
@@ -213,7 +219,7 @@ VCEngine::findQueueFamilies(vk::PhysicalDevice device) const
     i++;
   }
 #ifndef NDEBUG
-  std::cout << "VCEngine::findQueueFamilies:  "<< indices.info() << std::endl;
+  std::cout << "VCEngine::findQueueFamilies:  " << indices.info() << std::endl;
 #endif
   return indices;
 }
@@ -272,14 +278,13 @@ VCEngine::initInstance()
   if (enableValidationLayers && !checkValidationLayerSupport()) {
     throw std::runtime_error("validation layers requested, but not available!");
   }
-
   vk::ApplicationInfo appInfo{};
   appInfo.sType = vk::StructureType::eApplicationInfo;
   appInfo.pApplicationName = APPNAME;
   appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.pEngineName = "No Engine";
   appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-  appInfo.apiVersion = VK_API_VERSION_1_0;
+  appInfo.apiVersion = vkVersion;
 
   vk::InstanceCreateInfo createInfo{};
   createInfo.sType = vk::StructureType::eInstanceCreateInfo;

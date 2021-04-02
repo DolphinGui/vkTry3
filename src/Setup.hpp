@@ -21,7 +21,7 @@ public:
   
 
 private:
-friend class Renderer<3>;
+friend class Doer<3>;
 
   vk::SwapchainKHR swapChain;
   std::vector<vk::Image> swapChainImages;

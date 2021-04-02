@@ -4,6 +4,7 @@
 #include <array>
 #include <string>
 #include <vulkan/vulkan.hpp>
+#include "VulkanMemoryAllocator/src/VmaUsage.h"
 
 #include <cstdint>
 #include <iostream>
@@ -17,6 +18,8 @@ const bool enableValidationLayers = true;
 #endif
 
 namespace vcc {
+//normally I dislike global scope, but it's too 
+//convenient not to use.
 struct QueueFamilyIndices
 { // should remove this later.
   std::optional<uint32_t> graphicsFamily;
@@ -49,14 +52,19 @@ class Setup;
 class VCEngine
 {
 public:
+
+friend class Setup;
+
   const uint32_t WIDTH;
   const uint32_t HEIGHT;
   const char* APPNAME;
 
+  VmaAllocator vmaAlloc;
+
   void run(Setup* setup);
   VCEngine(int width, int height, const char* name);
   ~VCEngine();
-  vk::SampleCountFlagBits getMSAAsamples() { return msaaSamples; }
+  const vk::SampleCountFlagBits getMSAAsamples() { return msaaSamples; }
 
   const vk::Device* const getDevPtr() { return &device; }
 
@@ -66,9 +74,7 @@ public:
 
   const vk::SurfaceKHR* const getSurfacePtr() { return &surface; }
 
-  const vk::DispatchLoaderDynamic* const getDload() { return &dload; }
-
-  vk::PhysicalDeviceMemoryProperties getMemProps() { return physProps; }
+  const vk::PhysicalDeviceMemoryProperties getMemProps() { return physProps; }
 
   vk::Extent2D framebufferSize()
   {
@@ -92,10 +98,13 @@ private:
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
   };
 
+  const uint32_t vkVersion = VK_API_VERSION_1_2;
+
   vk::Device device;
   vk::PhysicalDevice physicalDevice;
   vk::PhysicalDeviceMemoryProperties physProps;
   vk::Queue graphicsQueue;
+  vk::DispatchLoaderDynamic dload;
 
   GLFWwindow* window;
   bool framebufferResized = false;
@@ -103,7 +112,6 @@ private:
   vk::Instance instance;
   vk::DebugUtilsMessengerEXT debugMessenger;
   vk::SurfaceKHR surface;
-  vk::DispatchLoaderDynamic dload;
 
   vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e2;
 

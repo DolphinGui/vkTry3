@@ -422,7 +422,7 @@ void Setup::createFramebuffers(){
 
 void Setup::createSwapChain() {
     std::vector<vk::SurfaceFormatKHR> formats =
-    env->getPhyDevPtr()->getSurfaceFormatsKHR(*env->getSurfacePtr(), *env->getDload());
+    env->getPhyDevPtr()->getSurfaceFormatsKHR(*env->getSurfacePtr(), env->dload);
     vk::SurfaceFormatKHR surfaceFormat;
     for (const auto& availableFormat : formats) {
         if (availableFormat.format == vk::Format::eB8G8R8A8Srgb &&
@@ -433,7 +433,7 @@ void Setup::createSwapChain() {
     surfaceFormat = formats[0];
 
     std::vector<vk::PresentModeKHR> presentModes =
-    env->getPhyDevPtr()->getSurfacePresentModesKHR(*env->getSurfacePtr(), *env->getDload());
+    env->getPhyDevPtr()->getSurfacePresentModesKHR(*env->getSurfacePtr(), env->dload);
     vk::PresentModeKHR presentMode;
     for (const auto& availablePresentMode : presentModes) {
         if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
@@ -443,7 +443,7 @@ void Setup::createSwapChain() {
     presentMode = vk::PresentModeKHR::eFifo;
 
     vk::SurfaceCapabilitiesKHR capabilities =
-    env->getPhyDevPtr()->getSurfaceCapabilitiesKHR(*env->getSurfacePtr(), *env->getDload());
+    env->getPhyDevPtr()->getSurfaceCapabilitiesKHR(*env->getSurfacePtr(), env->dload);
 
     vk::Extent2D extent;
     if (capabilities.currentExtent.width != UINT32_MAX) {
@@ -495,7 +495,7 @@ void Setup::createSwapChain() {
     if (env->getDevPtr()->createSwapchainKHR(&createInfo, nullptr, &swapChain) != vk::Result::eSuccess) {
         throw std::runtime_error("failed to create swap chain!");
     }
-    swapChainImages = env->getDevPtr()->getSwapchainImagesKHR(swapChain, *env->getDload());
+    swapChainImages = env->getDevPtr()->getSwapchainImagesKHR(swapChain, env->dload);
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
 }

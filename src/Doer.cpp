@@ -8,7 +8,7 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
-#include "Renderer.hpp"
+#include "Doer.hpp"
 #include "VCEngine.hpp"
 #include "jobs/RecordJob.hpp"
 #include "jobs/SubmitJob.hpp"
@@ -17,11 +17,10 @@
 namespace vcc {
 
 template<int T>
-Renderer<T>::Renderer(vk::Queue& g,
+Doer<T>::Doer(vk::Queue& g,
                       vk::Device& d,
                       uint32_t graphicsIndex,
                       uint32_t poolCount)
-  : Doer(g, d, graphicsIndex)
 {
 
   for (auto i = commands.begin(); i != commands.end(); i++) {
@@ -37,7 +36,7 @@ Renderer<T>::Renderer(vk::Queue& g,
   }
 }
 template<int T>
-Renderer<T>::~Renderer()
+Doer<T>::~Doer()
 {
   alive = false;
   std::unique_lock<std::mutex> lock;
@@ -56,14 +55,14 @@ Renderer<T>::~Renderer()
 
 template<int T>
 void
-Renderer<T>::submit(RecordJob record)
+Doer<T>::submit(RecordJob record)
 {
   records.push(record);
 }
 
 template<int T>
 void
-Renderer<T>::allocBuffers(const std::vector<SubmitJob>& jobs,
+Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs,
                           const Frame& frame)
 {
   int bufferCount(0);
@@ -87,7 +86,7 @@ Renderer<T>::allocBuffers(const std::vector<SubmitJob>& jobs,
 // but I'm also pretty sure it doesn't matter too much.
 template<int T>
 int
-Renderer<T>::countDependencies(const SubmitJob& job)
+Doer<T>::countDependencies(const SubmitJob& job)
 {
   if (job.dependent)
     return countDependencies(*job.dependent) + 1;
@@ -96,7 +95,7 @@ Renderer<T>::countDependencies(const SubmitJob& job)
 
 template<int T>
 vcc::SubmitJob
-Renderer<T>::record(const RecordJob& job, Frame& frame)
+Doer<T>::record(const RecordJob& job, Frame& frame)
 {
   SubmitJob dependency;
   if (!job.dependency)
@@ -115,7 +114,7 @@ Renderer<T>::record(const RecordJob& job, Frame& frame)
 }
 template<int T>
 void
-Renderer<T>::present(const std::vector<SubmitJob>& jobs,
+Doer<T>::present(const std::vector<SubmitJob>& jobs,
                      const Frame& f,
                      const vk::Semaphore& s)
 {
@@ -146,7 +145,7 @@ Renderer<T>::present(const std::vector<SubmitJob>& jobs,
 }
 template<int T>
 void
-Renderer<T>::start()
+Doer<T>::start()
 {
   std::vector<vcc::SubmitJob> jobs;
   while (alive) {
