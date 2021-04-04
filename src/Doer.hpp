@@ -9,22 +9,19 @@
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
-#include "jobs/SubmitJob.hpp"
 #include "jobs/RecordJob.hpp"
+#include "jobs/SubmitJob.hpp"
 #include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
 /* T is the amount of frames in flight
-*/
+ */
 template<int T>
 class Doer
 {
 
 public:
-  Doer(vk::Queue& graphics,
-       vk::Device& dev,
-       uint32_t graphicsIndex,
-       uint32_t poolCount);
+  Doer(vk::Queue& graphics, vk::Device& dev, uint32_t graphicsIndex);
   ~Doer();
   void start();
   void submit(RecordJob record);

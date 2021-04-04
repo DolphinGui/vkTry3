@@ -73,15 +73,14 @@ VCEngine::VCEngine(int width, int height, const char* name)
   physProps = physicalDevice.getMemoryProperties();
 
   dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr, device);
-  
+
   VmaAllocatorCreateInfo allocInfo{};
   allocInfo.vulkanApiVersion = vkVersion;
   allocInfo.physicalDevice = physicalDevice;
   allocInfo.device = device;
   allocInfo.instance = instance;
-  
-  vmaCreateAllocator(&allocInfo, &vmaAlloc);
 
+  vmaCreateAllocator(&allocInfo, &vmaAlloc);
 }
 
 VCEngine::~VCEngine()
@@ -166,6 +165,7 @@ VCEngine::createLogicalDevice()
 }
 
 #ifndef NDEBUG
+namespace {
 std::string
 getFamilyFlags(const vk::QueueFamilyProperties& props)
 {
@@ -181,6 +181,7 @@ getFamilyFlags(const vk::QueueFamilyProperties& props)
   }
   results += std::to_string(props.queueCount);
   return results;
+}
 }
 #endif
 

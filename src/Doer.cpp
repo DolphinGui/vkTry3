@@ -17,10 +17,7 @@
 namespace vcc {
 
 template<int T>
-Doer<T>::Doer(vk::Queue& g,
-                      vk::Device& d,
-                      uint32_t graphicsIndex,
-                      uint32_t poolCount)
+Doer<T>::Doer(vk::Queue& g, vk::Device& d, uint32_t graphicsIndex)
 {
 
   for (auto i = commands.begin(); i != commands.end(); i++) {
@@ -62,8 +59,7 @@ Doer<T>::submit(RecordJob record)
 
 template<int T>
 void
-Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs,
-                          const Frame& frame)
+Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
 {
   int bufferCount(0);
   for (auto job : jobs) {
@@ -115,11 +111,14 @@ Doer<T>::record(const RecordJob& job, Frame& frame)
 template<int T>
 void
 Doer<T>::present(const std::vector<SubmitJob>& jobs,
-                     const Frame& f,
-                     const vk::Semaphore& s)
+                 const Frame& f,
+                 const vk::Semaphore& s)
 {
   std::vector<SubmitJob*> dependents;
   std::vector<vk::CommandBuffer*> buffers;
+
+  dependents.reserve(jobs.size());
+  buffers.reserve(jobs.size());
   for (auto job : jobs) {
     dependents.push_back(job.dependent);
     buffers.push_back(&job.commands->cmd);
@@ -150,6 +149,7 @@ Doer<T>::start()
   std::vector<vcc::SubmitJob> jobs;
   while (alive) {
     for (Frame frame : commands) {
+      jobs.reserve(records.size());
       while (records.size() != 0) {
         allocBuffers(records.front(), frame);
         jobs.push_back(record(records.front(), frame));

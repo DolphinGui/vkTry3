@@ -7,7 +7,7 @@
 #include <mutex>
 
 #include "vkobjects/ImageBundle.hpp"
-#include "Renderer.hpp"
+#include "Doer.hpp"
 
 using namespace vcc;
 namespace vcc{

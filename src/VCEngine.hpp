@@ -70,8 +70,6 @@ friend class Setup;
 
   const vk::PhysicalDevice* const getPhyDevPtr() { return &physicalDevice; }
 
-  const vk::Queue* const getGpxPtr() { return &graphicsQueue; }
-
   const vk::SurfaceKHR* const getSurfacePtr() { return &surface; }
 
   const vk::PhysicalDeviceMemoryProperties getMemProps() { return physProps; }
@@ -104,6 +102,7 @@ private:
   vk::PhysicalDevice physicalDevice;
   vk::PhysicalDeviceMemoryProperties physProps;
   vk::Queue graphicsQueue;
+  vk::Queue presentQueue;
   vk::DispatchLoaderDynamic dload;
 
   GLFWwindow* window;
@@ -115,7 +114,7 @@ private:
 
   vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e2;
 
-  vk::Queue presentQueue;
+  
 
   bool checkValidationLayerSupport();
   void initInstance();
