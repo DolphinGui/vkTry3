@@ -251,6 +251,7 @@ Setup::createImageView(vk::Image image,
 void
 Setup::createGraphicsPipeline()
 {
+
   auto vertShaderCode = readFile("../shaders/vert.spv");
   auto fragShaderCode = readFile("../shaders/frag.spv");
 

@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <vulkan/vulkan.hpp>
+#include <boost/container/static_vector.hpp>
 
 #include "VCEngine.hpp"
 #include "jobs/RecordJob.hpp"
@@ -17,14 +18,14 @@ namespace vcc {
 /* T is the amount of frames in flight
  */
 template<int T>
-class Doer
+class Renderer
 {
 
 public:
-  Doer(vk::Queue& graphics, vk::Device& dev, uint32_t graphicsIndex);
-  ~Doer();
+  Renderer(vk::Queue& graphics, vk::Device& dev, uint32_t graphicsIndex);
+  ~Renderer();
   void start();
-  void submit(RecordJob record);
+  void submit(std::vector<RecordJob> record);
 
 private:
   struct Frame
@@ -35,24 +36,26 @@ private:
     std::queue<vk::Semaphore> semaphores;
     Frame(vk::CommandPool pool,
           std::vector<vcc::CmdBuffer> buffers,
-          std::vector<vk::Semaphore> semaphores)
-    {
-      this->pool = pool, this->buffers = buffers, this->semaphores = semaphores;
-    }
+          std::queue<vk::Semaphore> semaphores)
+      : pool(pool)
+      , buffers(buffers)
+      , semaphores(semaphores)
+    {}
   };
-  std::array<Frame, T> commands;
+  std::array<Frame, T> frames;
+  vk::Device* dev;
+  vk::Queue* graphics;
+  std::thread thread;
+  std::queue<std::vector<RecordJob>> recordJobs;
+  bool alive;
+  std::condition_variable deathtoll;
+
   vcc::SubmitJob record(const RecordJob& job, Frame& frame);
   void present(const std::vector<SubmitJob>& jobs,
                const Frame& frame,
                const vk::Semaphore& semaphore);
   void allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame);
   static int countDependencies(const SubmitJob& job);
-  vk::Device* dev;
-  vk::Queue* graphics;
-  std::thread thread;
-  std::queue<RecordJob> records;
-  bool alive;
-  std::condition_variable deathtoll;
 };
 }
 #endif

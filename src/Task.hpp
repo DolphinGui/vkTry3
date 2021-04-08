@@ -5,7 +5,7 @@
 #include <utility>
 #include <stb/stb_image.h>
 
-#include "Doer.hpp"
+#include "Renderer.hpp"
 #include "vkobjects/Buffer.hpp"
 #include "vkobjects/ImageBundle.hpp"
 #include "data/UniformBufferObject.hpp"
@@ -48,8 +48,8 @@ std::vector<vk::Fence> inFlightF;
 std::vector<vk::Fence> imagesInFlightF;
 size_t currFrame = 0;
 
-Doer<3> render;
-Doer<3> mover;
+Renderer<3> render;
+Renderer<3> mover;
 
 bool resized = false;
 

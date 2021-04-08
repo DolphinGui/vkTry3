@@ -3,14 +3,13 @@
 #include <vulkan/vulkan.hpp>
 
 namespace vcc {
-enum struct bufferStates
+enum class bufferStates
 {
   kInitial,
   kRecording,
   kExecutable,
   kPending,
-  kInvalid,
-  kNonexistant
+  kInvalid
 };
 struct CmdBuffer
 {
@@ -21,10 +20,7 @@ struct CmdBuffer
     : cmd(commands)
     , state(bufferStates::kInitial)
   {}
-  CmdBuffer()
-    : cmd(nullptr)
-    , state(bufferStates::kNonexistant)
-  {}
+  CmdBuffer() = default;
 };
 }
 

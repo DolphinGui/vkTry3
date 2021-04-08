@@ -1,13 +1,14 @@
 #ifndef SETUP_H_INCLUDE
 #define SETUP_H_INCLUDE
 #include <bits/stdint-uintn.h>
+#include <string_view>
 #include <vulkan/vulkan.hpp>
 #include <vector>
 #include <fstream>
 #include <mutex>
 
 #include "vkobjects/ImageBundle.hpp"
-#include "Doer.hpp"
+#include "Renderer.hpp"
 
 using namespace vcc;
 namespace vcc{
@@ -21,7 +22,7 @@ public:
   
 
 private:
-friend class Doer<3>;
+friend class Renderer<3>;
 
   vk::SwapchainKHR swapChain;
   std::vector<vk::Image> swapChainImages;
@@ -60,8 +61,8 @@ friend class Doer<3>;
     vk::FormatFeatureFlags features);
     
   //TODO: change this to std::byte at some point
-  static std::vector<char> readFile(const std::string& filename) {
-      std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  static std::vector<char> readFile(const std::string_view& filename) {
+      std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
 
       if (!file.is_open()) {
           throw std::runtime_error("failed to open file!");

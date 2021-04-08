@@ -1,4 +1,4 @@
-#include <vulkan/vulkan.hpp>
+#include <string_view>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -6,23 +6,11 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #include "VulkanMemoryAllocator/src/VmaUsage.h"
 
-#include <algorithm>
-#include <array>
 #include <bits/stdint-uintn.h>
-#include <cassert>
-#include <chrono>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
-#include <iostream>
 #include <map>
-#include <memory>
-#include <optional>
 #include <set>
-#include <stdexcept>
-#include <string>
 #include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "Setup.hpp"
 #include "VCEngine.hpp"
@@ -36,52 +24,90 @@ struct SwapChainSupportDetails
 
 using namespace vcc;
 void
-VCEngine::run(Setup* s){};
+VCEngine::run(Setup* s){}; // TODO: add stuff to this, maybe
 
-VCEngine::VCEngine(int width, int height, const char* name)
-  : WIDTH(width)
-  , HEIGHT(height)
-  , APPNAME(name)
+namespace {
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+              VkDebugUtilsMessageTypeFlagsEXT messageType,
+              const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+              void* pUserData)
 {
-  initGLFW();
-  initInstance();
-  dload = vk::DispatchLoaderDynamic(
-    instance,
-    vk::DynamicLoader().getProcAddress<PFN_vkGetInstanceProcAddr>(
-      "vkGetInstanceProcAddr"));
-  if (enableValidationLayers) {
-    vk::DebugUtilsMessengerCreateInfoEXT createInfo;
-    populateDebugMessengerCreateInfo(createInfo);
+  std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 
-    if (CreateDebugUtilsMessengerEXT(
-          instance, &createInfo, nullptr, &debugMessenger) !=
-        vk::Result::eSuccess) {
+  return VK_FALSE;
+}
+
+vk::DebugUtilsMessengerEXT
+createDebugMessenger(vk::Instance instance)
+{
+  VkDebugUtilsMessengerEXT debugMessenger;
+  if (enableValidationLayers) {
+    VkDebugUtilsMessengerCreateInfoEXT createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    createInfo.messageSeverity =
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.pfnUserCallback = debugCallback;
+    auto funct = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+      instance.getProcAddr("vkCreateDebugUtilsMessengerEXT"));
+    if (funct) {
+      funct(instance, &createInfo, nullptr, &debugMessenger);
+    } else {
       throw std::runtime_error("failed to set up debug messenger!");
     }
+    return debugMessenger;
   }
-  VkSurfaceKHR surf;
-  if (glfwCreateWindowSurface(VkInstance(instance), window, nullptr, &surf) !=
-      VK_SUCCESS) {
+}
+vk::SurfaceKHR
+createSurfaceGLFW(vk::Instance instance, GLFWwindow* window)
+{
+  VkSurfaceKHR surface;
+  if (glfwCreateWindowSurface(
+        VkInstance(instance), window, nullptr, &surface) != VK_SUCCESS) {
     throw std::runtime_error("failed to create window surface!");
   }
-
-  surface = vk::SurfaceKHR(surf);
-
-  pickPhysicalDevice();
-  createLogicalDevice();
-
-  physProps = physicalDevice.getMemoryProperties();
-
-  dload = vk::DispatchLoaderDynamic(instance, vkGetInstanceProcAddr, device);
-
+  return vk::SurfaceKHR(surface);
+}
+VmaAllocator
+vmaInfo(uint32_t vkVersion,
+        vk::PhysicalDevice physicalDevice,
+        vk::Device device,
+        vk::Instance instance)
+{
   VmaAllocatorCreateInfo allocInfo{};
   allocInfo.vulkanApiVersion = vkVersion;
   allocInfo.physicalDevice = physicalDevice;
   allocInfo.device = device;
   allocInfo.instance = instance;
-
-  vmaCreateAllocator(&allocInfo, &vmaAlloc);
+  VmaAllocator result;
+  vmaCreateAllocator(&allocInfo, &result);
+  return result;
 }
+}
+
+VCEngine::VCEngine(int width, int height, const char* name, GLFWwindow* w)
+  : WIDTH(width)
+  , HEIGHT(height)
+  , APPNAME(name)
+  , instance(initInstance())
+  , window(initGLFW(w))
+  , surface(createSurfaceGLFW(instance, window))
+  , physicalDevice(pickPhysicalDevice())
+  , physProps(physicalDevice.getMemoryProperties())
+  , dload(vk::DispatchLoaderDynamic(
+      instance,
+      vk::DynamicLoader().getProcAddress<PFN_vkGetInstanceProcAddr>(
+        "vkGetInstanceProcAddr")))
+  , device(createLogicalDevice())
+  , debugMessenger(createDebugMessenger(instance))
+  , vmaAlloc(vmaInfo(vkVersion, physicalDevice, device, instance))
+{}
 
 VCEngine::~VCEngine()
 {
@@ -102,66 +128,6 @@ VCEngine::~VCEngine()
   glfwDestroyWindow(window);
 
   glfwTerminate();
-}
-
-void
-VCEngine::initGLFW()
-{
-  glfwInit();
-
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-  window = glfwCreateWindow(WIDTH, HEIGHT, APPNAME, nullptr, nullptr);
-  glfwSetWindowUserPointer(window, this);
-  glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-}
-
-void
-VCEngine::createLogicalDevice()
-{
-  QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-
-  std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
-  std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(),
-                                             indices.presentFamily.value() };
-
-  float queuePriority = 1.0f;
-  for (uint32_t queueFamily : uniqueQueueFamilies) {
-    vk::DeviceQueueCreateInfo queueCreateInfo(
-      {}, queueFamily, 2, &queuePriority);
-    queueCreateInfos.push_back(queueCreateInfo);
-  }
-
-  vk::PhysicalDeviceFeatures deviceFeatures{};
-  deviceFeatures.samplerAnisotropy = VK_TRUE;
-
-  vk::DeviceCreateInfo createInfo{};
-  createInfo.sType = createInfo.sType = vk::StructureType::eDeviceCreateInfo;
-
-  createInfo.queueCreateInfoCount =
-    static_cast<uint32_t>(queueCreateInfos.size());
-  createInfo.pQueueCreateInfos = queueCreateInfos.data();
-
-  createInfo.pEnabledFeatures = &deviceFeatures;
-
-  createInfo.enabledExtensionCount =
-    static_cast<uint32_t>(deviceExtensions.size());
-  createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-
-  if (enableValidationLayers) {
-    createInfo.enabledLayerCount =
-      static_cast<uint32_t>(validationLayers.size());
-    createInfo.ppEnabledLayerNames = validationLayers.data();
-  } else {
-    createInfo.enabledLayerCount = 0;
-  }
-  if (physicalDevice.createDevice(&createInfo, nullptr, &device) !=
-      vk::Result::eSuccess) {
-    throw std::runtime_error("failed to create device");
-  }
-
-  device.getQueue(indices.graphicsFamily.value(), 0, &graphicsQueue);
-  device.getQueue(indices.presentFamily.value(), 0, &presentQueue);
 }
 
 #ifndef NDEBUG
@@ -185,32 +151,79 @@ getFamilyFlags(const vk::QueueFamilyProperties& props)
 }
 #endif
 
+GLFWwindow*
+VCEngine::initGLFW(GLFWwindow* w)
+{
+  glfwSetWindowUserPointer(w, this);
+  glfwSetFramebufferSizeCallback(w, framebufferResizeCallback);
+  return w;
+}
+
+vk::Device
+VCEngine::createLogicalDevice()
+{
+  QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+  std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
+  std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(),
+                                             indices.presentFamily.value() };
+
+  float queuePriority = 1.0f;
+  for (uint32_t queueFamily : uniqueQueueFamilies) {
+    vk::DeviceQueueCreateInfo queueCreateInfo(
+      {}, queueFamily, 2, &queuePriority);
+    queueCreateInfos.push_back(queueCreateInfo);
+  }
+  vk::PhysicalDeviceFeatures deviceFeatures{};
+  deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+  vk::DeviceCreateInfo createInfo{};
+  createInfo.sType = createInfo.sType = vk::StructureType::eDeviceCreateInfo;
+
+  createInfo.queueCreateInfoCount =
+    static_cast<uint32_t>(queueCreateInfos.size());
+  createInfo.pQueueCreateInfos = queueCreateInfos.data();
+
+  createInfo.pEnabledFeatures = &deviceFeatures;
+
+  createInfo.enabledExtensionCount =
+    static_cast<uint32_t>(deviceExtensions.size());
+  createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+
+  if (enableValidationLayers) {
+    createInfo.enabledLayerCount =
+      static_cast<uint32_t>(validationLayers.size());
+    createInfo.ppEnabledLayerNames = validationLayers.data();
+  } else {
+    createInfo.enabledLayerCount = 0;
+  }
+  vk::Device d;
+  vk::Result result = physicalDevice.createDevice(&createInfo, nullptr, &d);
+  if (result != vk::Result::eSuccess) {
+    throw std::runtime_error("failed to create device");
+  }
+  return d;
+}
+/*change this later*/
 QueueFamilyIndices
 VCEngine::findQueueFamilies(vk::PhysicalDevice device) const
 {
   QueueFamilyIndices indices;
 
-  std::vector<vk::QueueFamilyProperties> queueFamilies(
-    device.getQueueFamilyProperties());
+  std::vector<vk::QueueFamilyProperties> queueFamilies =
+    device.getQueueFamilyProperties();
+
   int i = 0;
   for (const auto& queueFamily : queueFamilies) {
-
-    if (!(queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) &&
-        !(queueFamily.queueFlags & vk::QueueFlagBits::eCompute)) {
-      indices.transferFamily = i;
-      continue;
+    if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
+      indices.graphicsFamily = i;
     }
 
-    VkBool32 presentSupport = false;
-    if (device.getSurfaceSupportKHR(i, surface, &presentSupport) !=
-        vk::Result::eSuccess)
-      throw std::runtime_error("failed to get surface support details");
-    if (presentSupport) {
+    if (device.getSurfaceSupportKHR(i, surface)) {
       indices.presentFamily = i;
     }
 
-    if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
-      indices.graphicsFamily = i;
+    if (queueFamily.queueFlags & vk::QueueFlagBits::eTransfer) {
+      indices.transferFamily = i;
     }
 
     if (indices.isComplete()) {
@@ -219,13 +232,14 @@ VCEngine::findQueueFamilies(vk::PhysicalDevice device) const
 
     i++;
   }
+
 #ifndef NDEBUG
   std::cout << "VCEngine::findQueueFamilies:  " << indices.info() << std::endl;
 #endif
   return indices;
 }
 
-void
+vk::PhysicalDevice
 VCEngine::pickPhysicalDevice()
 {
   uint32_t deviceCount = 0;
@@ -242,12 +256,14 @@ VCEngine::pickPhysicalDevice()
     int score = deviceSuitability(device);
     candidates.insert(std::make_pair(score, device));
   }
-
+  vk::PhysicalDevice result;
   if (candidates.rbegin()->first > 0) {
-    physicalDevice = candidates.rbegin()->second;
+    result = candidates.rbegin()->second;
   } else {
     throw std::runtime_error("failed to find a suitable GPU!");
   }
+
+  return result;
 }
 
 int
@@ -273,7 +289,7 @@ VCEngine::deviceSuitability(vk::PhysicalDevice device)
   return score;
 }
 
-void
+vk::Instance
 VCEngine::initInstance()
 {
   if (enableValidationLayers && !checkValidationLayerSupport()) {
@@ -286,7 +302,6 @@ VCEngine::initInstance()
   appInfo.pEngineName = "No Engine";
   appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.apiVersion = vkVersion;
-
   vk::InstanceCreateInfo createInfo{};
   createInfo.sType = vk::StructureType::eInstanceCreateInfo;
   createInfo.pApplicationInfo = &appInfo;
@@ -294,50 +309,30 @@ VCEngine::initInstance()
   auto extensions = getRequiredExtensions();
   createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
   createInfo.ppEnabledExtensionNames = extensions.data();
-
   vk::DebugUtilsMessengerCreateInfoEXT debugCreateInfo;
   if (enableValidationLayers) {
     createInfo.enabledLayerCount =
       static_cast<uint32_t>(validationLayers.size());
     createInfo.ppEnabledLayerNames = validationLayers.data();
-
-    populateDebugMessengerCreateInfo(debugCreateInfo);
+    debugCreateInfo.messageSeverity =
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+    debugCreateInfo.messageType =
+      vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+      vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+      vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
+    debugCreateInfo.pfnUserCallback = debugCallback;
     createInfo.pNext = (vk::DebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
   } else {
     createInfo.enabledLayerCount = 0;
 
     createInfo.pNext = nullptr;
   }
-  if (vk::createInstance(&createInfo, nullptr, &instance) !=
-      vk::Result::eSuccess)
+  vk::Instance result;
+  if (vk::createInstance(&createInfo, nullptr, &result) != vk::Result::eSuccess)
     throw std::runtime_error("failed to create image!");
-}
-
-void
-VCEngine::populateDebugMessengerCreateInfo(
-  vk::DebugUtilsMessengerCreateInfoEXT& createInfo)
-{
-  createInfo.sType = vk::StructureType::eDebugUtilsMessengerCreateInfoEXT;
-  createInfo.messageSeverity =
-    vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
-    vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
-    vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
-  createInfo.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
-                           vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
-                           vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
-  createInfo.pfnUserCallback = debugCallback;
-}
-
-vk::Result
-VCEngine::CreateDebugUtilsMessengerEXT(
-  vk::Instance instance,
-  const vk::DebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-  const vk::AllocationCallbacks* pAllocator,
-  vk::DebugUtilsMessengerEXT* pDebugMessenger)
-{
-
-  return instance.createDebugUtilsMessengerEXT(
-    pCreateInfo, pAllocator, pDebugMessenger, dload);
+  return result;
 }
 
 void
@@ -365,11 +360,11 @@ VCEngine::checkValidationLayerSupport()
         &layerCount, availableLayers.data()) != vk::Result::eSuccess)
     throw std::runtime_error("failed to count layer properties");
 
-  for (const char* layerName : validationLayers) {
+  for (const std::string_view& layerName : validationLayers) {
     bool layerFound = false;
 
-    for (const auto& layerProperties : availableLayers) {
-      if (strcmp(layerName, layerProperties.layerName) == 0) {
+    for (const vk::LayerProperties& layerProperties : availableLayers) {
+      if (strcmp(layerName.data(), layerProperties.layerName) == 0) {
         layerFound = true;
         break;
       }

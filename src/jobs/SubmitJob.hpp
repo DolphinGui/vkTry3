@@ -10,18 +10,21 @@ namespace vcc {
 struct SubmitJob
 {
 public:
-  
-  SubmitJob* dependent;//change this to support multiple dependencies later
-  vcc::CmdBuffer* commands;
-  SubmitJob(vcc::CmdBuffer& buffer)
-    : dependent(nullptr)
-    , commands(&buffer)
+  vk::CommandBuffer* commands;
+  SubmitJob* dependent; // change this to support multiple dependencies later
+  const vk::CommandBufferUsageFlags usage;
+  SubmitJob(vk::CommandBuffer& buffer, vk::CommandBufferUsageFlags usage)
+    : commands(&buffer)
+    , dependent(nullptr)
+    , usage(usage)
   {}
-  SubmitJob(vcc::CmdBuffer& buffer, SubmitJob& depend)
-    : dependent(&depend)
-    , commands(&buffer)
+  SubmitJob(vk::CommandBuffer& buffer,
+            SubmitJob& depend,
+            vk::CommandBufferUsageFlags usage)
+    : commands(&buffer)
+    , dependent(&depend)
+    , usage(usage)
   {}
-  SubmitJob(){}
 };
 }
 #endif

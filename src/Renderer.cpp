@@ -8,7 +8,7 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
-#include "Doer.hpp"
+#include "Renderer.hpp"
 #include "VCEngine.hpp"
 #include "jobs/RecordJob.hpp"
 #include "jobs/SubmitJob.hpp"
@@ -17,10 +17,10 @@
 namespace vcc {
 
 template<int T>
-Doer<T>::Doer(vk::Queue& g, vk::Device& d, uint32_t graphicsIndex)
+Renderer<T>::Renderer(vk::Queue& g, vk::Device& d, uint32_t graphicsIndex)
 {
 
-  for (auto i = commands.begin(); i != commands.end(); i++) {
+  for (auto i = frames.begin(); i != frames.end(); i++) {
     vk::CommandPoolCreateInfo poolInfo{};
     poolInfo.sType = vk::StructureType::eCommandPoolCreateInfo;
     poolInfo.queueFamilyIndex = graphicsIndex;
@@ -33,12 +33,12 @@ Doer<T>::Doer(vk::Queue& g, vk::Device& d, uint32_t graphicsIndex)
   }
 }
 template<int T>
-Doer<T>::~Doer()
+Renderer<T>::~Renderer()
 {
   alive = false;
   std::unique_lock<std::mutex> lock;
   deathtoll.wait(lock);
-  for (Frame f : commands) {
+  for (Frame f : frames) {
     dev->destroyFence(f.submitted);
     dev->freeCommandBuffers(
       f.pool,
@@ -52,14 +52,15 @@ Doer<T>::~Doer()
 
 template<int T>
 void
-Doer<T>::submit(RecordJob record)
+Renderer<T>::submit(std::vector<RecordJob> record)
 {
-  records.push(record);
+  recordJobs.push(record);
 }
 
 template<int T>
 void
-Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
+Renderer<T>::allocBuffers(const std::vector<SubmitJob>& jobs,
+                          const Frame& frame)
 {
   int bufferCount(0);
   for (auto job : jobs) {
@@ -82,7 +83,7 @@ Doer<T>::allocBuffers(const std::vector<SubmitJob>& jobs, const Frame& frame)
 // but I'm also pretty sure it doesn't matter too much.
 template<int T>
 int
-Doer<T>::countDependencies(const SubmitJob& job)
+Renderer<T>::countDependencies(const SubmitJob& job)
 {
   if (job.dependent)
     return countDependencies(*job.dependent) + 1;
@@ -91,28 +92,26 @@ Doer<T>::countDependencies(const SubmitJob& job)
 
 template<int T>
 vcc::SubmitJob
-Doer<T>::record(const RecordJob& job, Frame& frame)
+Renderer<T>::record(const RecordJob& job, Frame& frame)
 {
-  SubmitJob dependency;
-  if (!job.dependency)
-    dependency = record(*job.dependency, frame);
   for (auto buffer : frame.buffers) {
     if (buffer.state == bufferStates::kInitial) {
-      buffer.cmd.begin(vk::CommandBufferBeginInfo());
       buffer.state = bufferStates::kRecording;
-      job.exec(buffer);
-      buffer.cmd.end();
+      job.record(buffer);
       buffer.state = bufferStates::kPending;
-      return SubmitJob(buffer, dependency);
+      if (!job.dependency)
+        return SubmitJob(
+          buffer, record(*job.dependency, frame), job.info.flags);
+      return SubmitJob(buffer, nullptr, job.info.flags);
     }
   }
   throw std::runtime_error("not enough buffers allocated");
 }
 template<int T>
 void
-Doer<T>::present(const std::vector<SubmitJob>& jobs,
-                 const Frame& f,
-                 const vk::Semaphore& s)
+Renderer<T>::present(const std::vector<SubmitJob>& jobs,
+                     const Frame& f,
+                     const vk::Semaphore& s)
 {
   std::vector<SubmitJob*> dependents;
   std::vector<vk::CommandBuffer*> buffers;
@@ -144,16 +143,16 @@ Doer<T>::present(const std::vector<SubmitJob>& jobs,
 }
 template<int T>
 void
-Doer<T>::start()
+Renderer<T>::start()
 {
   std::vector<vcc::SubmitJob> jobs;
   while (alive) {
-    for (Frame frame : commands) {
-      jobs.reserve(records.size());
-      while (records.size() != 0) {
-        allocBuffers(records.front(), frame);
-        jobs.push_back(record(records.front(), frame));
-        records.pop();
+    for (Frame frame : frames) {
+      jobs.reserve(recordJobs.size());
+      while (recordJobs.size() != 0) {
+        allocBuffers(recordJobs.front(), frame);
+        jobs.push_back(record(recordJobs.front(), frame));
+        recordJobs.pop();
       }
       present(jobs, frame, nullptr);
     }

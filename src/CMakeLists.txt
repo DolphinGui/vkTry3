@@ -1,4 +1,11 @@
-set(SOURCEFILES "main.cpp" "VCEngine.cpp" "Setup.cpp" "vkobjects/ImageBundle.cpp" "vkobjects/Buffer.cpp" "SingleTimeCmdBuffer.cpp")
+set(SOURCEFILES 
+    "main.cpp" 
+    "VCEngine.cpp" 
+    "Setup.cpp" 
+    "vkobjects/ImageBundle.cpp" 
+    "vkobjects/Buffer.cpp" 
+    "SingleTimeCmdBuffer.cpp")
+
 
 add_executable(vulcanTest.out ${SOURCEFILES})
 
