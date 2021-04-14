@@ -23,8 +23,6 @@ struct SwapChainSupportDetails
 };
 
 using namespace vcc;
-void
-VCEngine::run(Setup* s){}; // TODO: add stuff to this, maybe
 
 namespace {
 

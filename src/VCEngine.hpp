@@ -48,7 +48,6 @@ struct QueueFamilyIndices
 #endif
 };
 
-
 class Setup;
 class VCEngine
 {
@@ -71,7 +70,7 @@ public:
   const vk::Queue graphicsQueue;
   const vk::Queue presentQueue;
 
-  bool framebufferResized = false;
+  bool isFramebufferResized() { return framebufferResized; }
 
   const vk::DebugUtilsMessengerEXT debugMessenger;
 
@@ -79,18 +78,6 @@ public:
   const vk::DispatchLoaderDynamic dload;
 
   const VmaAllocator vmaAlloc;
-
-  void run(Setup* setup);
-
-  const vk::SampleCountFlagBits getMSAAsamples() { return msaaSamples; }
-
-  const vk::Device* const getDevPtr() { return &device; }
-
-  const vk::PhysicalDevice* const getPhyDevPtr() { return &physicalDevice; }
-
-  const vk::SurfaceKHR* const getSurfacePtr() { return &surface; }
-
-  const vk::PhysicalDeviceMemoryProperties getMemProps() { return physProps; }
 
   vk::Extent2D framebufferSize()
   {
@@ -113,7 +100,7 @@ private:
   static constexpr std::array<const char*, 1> deviceExtensions = {
     "VK_KHR_swapchain"
   };
-
+  bool framebufferResized = false;
   bool checkValidationLayerSupport();
   vk::Instance initInstance();
   vk::PhysicalDevice pickPhysicalDevice();

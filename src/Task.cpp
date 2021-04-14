@@ -17,7 +17,7 @@ Task::Task(
     setup(s),
     engine(e),
     texture(loadImage(image, imageSize, vk::Format::eR8G8B8A8Srgb)),
-    textureSampler(e->getDevPtr()->createSampler(
+    textureSampler(e->device.createSampler(
         vk::SamplerCreateInfo(
             {},
             vk::Filter::eLinear,
@@ -28,7 +28,7 @@ Task::Task(
             vk::SamplerAddressMode::eRepeat,
             0.0f,
             VK_TRUE,
-            e->getPhyDevPtr()->getProperties().limits.maxSamplerAnisotropy,
+            e->physicalDevice.getProperties().limits.maxSamplerAnisotropy,
             VK_FALSE,
             vk::CompareOp::eAlways,
             0.0f,
@@ -93,7 +93,7 @@ ImageBundle Task::loadImage(void *data, vk::Extent2D size, vk::Format format){
     );
 
 //figure out what to do about this
-    SingleTimeCmdBuffer cmd(engine->getDevPtr(), engine->getGpxPtr(), &commandPool);
+    SingleTimeCmdBuffer cmd(engine->device, engine->graphicsQueue, &commandPool);
     cmd.cmd.copyBufferToImage(
         staging.buffer.get(), 
         result.image.get(), 
@@ -113,7 +113,7 @@ ImageBundle Task::loadImage(void *data, vk::Extent2D size, vk::Format format){
         )
     );
 
-    vk::FormatProperties fprop = engine->getPhyDevPtr()->getFormatProperties(format);
+    vk::FormatProperties fprop = engine->physicalDevice.getFormatProperties(format);
     if(!(fprop.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear))
         throw std::runtime_error("physicalDevice does not support linear blitting");
     vk::ImageMemoryBarrier mipmapper{};
@@ -234,5 +234,5 @@ vk::ImageMemoryBarrier Task::transitionImageLayout(vk::Image image, vk::Format f
 }
 
 Task::~Task(){
-    engine->getDevPtr()->destroyCommandPool(commandPool);
+    engine->device.destroyCommandPool(commandPool);
 }
