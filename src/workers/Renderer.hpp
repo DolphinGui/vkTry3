@@ -22,7 +22,7 @@ class Renderer
 {
 
 public:
-  Renderer(vk::Queue& graphics, vk::Device& dev, uint32_t graphicsIndex);
+  Renderer(const vk::Queue& graphics, const vk::Device& dev, uint32_t graphicsIndex);
   ~Renderer();
   void start();
   void submit(std::vector<RecordJob> record);

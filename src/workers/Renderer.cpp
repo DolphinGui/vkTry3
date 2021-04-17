@@ -17,7 +17,7 @@
 namespace vcc {
 
 template<int T>
-Renderer<T>::Renderer(vk::Queue& g, vk::Device& d, uint32_t graphicsIndex)
+Renderer<T>::Renderer(const vk::Queue& g, const vk::Device& d, uint32_t graphicsIndex)
 {
 
   for (auto i = frames.begin(); i != frames.end(); i++) {

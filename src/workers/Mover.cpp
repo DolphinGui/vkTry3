@@ -23,11 +23,12 @@ Mover<T>::Mover(vk::Queue& g, vk::Device& d, uint32_t transferIndex)
                                      transferIndex);
   if (d.createCommandPool(&poolInfo, nullptr, &pool) != vk::Result::eSuccess)
     throw std::runtime_error("failed to create command pool");
+  alive.test_and_set();
 }
 template<int T>
 Mover<T>::~Mover()
 {
-  alive = false;
+  alive.clear();
   std::unique_lock<std::mutex> lock;
   deathtoll.wait(lock);
 }
@@ -67,7 +68,7 @@ void
 Mover<T>::start()
 {
   std::vector<vcc::SubmitJob> jobs;
-  while (alive) {
+  while (alive.test_and_set()) {
     for (Frame frame : frames) {
       jobs.reserve(recordJobs.size());
       while (recordJobs.size() != 0) {

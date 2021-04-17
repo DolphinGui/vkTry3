@@ -3,35 +3,33 @@
 
 #include <vulkan/vulkan.hpp>
 
-namespace vcc{
+namespace vcc {
 class VCEngine;
-class Buffer{
+class Buffer
+{
 public:
-vk::UniqueBuffer buffer;
-vk::UniqueDeviceMemory mem;
-Buffer(
-    vcc::VCEngine* env,
-    size_t size, 
-    vk::BufferCreateFlags create,
-    vk::BufferUsageFlags usage,
-    vk::MemoryPropertyFlags memProps,
-    vk::SharingMode share = vk::SharingMode::eExclusive,
-    uint32_t queueFamilyIndexCount = {},
-    const uint32_t* queueFamilyIndicies = {}
-);
-Buffer(){};
-static Buffer load(
-    vcc::VCEngine* env,
-    size_t size, 
-    void* data,
-    vk::BufferCreateFlags create,
-    vk::BufferUsageFlags usage,
-    vk::MemoryPropertyFlags memProps,
-    vk::SharingMode share = vk::SharingMode::eExclusive,
-    uint32_t queueFamilyIndexCount = {},
-    const uint32_t* queueFamilyIndicies = {}
-);
-
+  vk::UniqueBuffer buffer;
+  vk::UniqueDeviceMemory mem;
+  Buffer(vk::Device,
+         const vk::PhysicalDeviceMemoryProperties&,
+         size_t size,
+         vk::BufferCreateFlags,
+         vk::BufferUsageFlags,
+         vk::MemoryPropertyFlags,
+         vk::SharingMode = vk::SharingMode::eExclusive,
+         uint32_t queueFamilyIndexCount = {},
+         const uint32_t* queueFamilyIndicies = {});
+  Buffer() = default;
+  static Buffer load(vk::Device,
+                     const vk::PhysicalDeviceMemoryProperties&,
+                     size_t size,
+                     void* data,
+                     vk::BufferCreateFlags,
+                     vk::BufferUsageFlags,
+                     vk::MemoryPropertyFlags,
+                     vk::SharingMode share = vk::SharingMode::eExclusive,
+                     uint32_t queueFamilyIndexCount = {},
+                     const uint32_t* queueFamilyIndicies = {});
 };
 
 }

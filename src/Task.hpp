@@ -1,15 +1,17 @@
 #ifndef TASK_H_INCLUDE
 #define TASK_H_INCLUDE
+#include <atomic>
+#include <cstddef>
 #include <stb/stb_image.h>
 #include <utility>
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
-#include "Renderer.hpp"
 #include "data/UniformBufferObject.hpp"
 #include "data/Vertex.hpp"
 #include "vkobjects/Buffer.hpp"
 #include "vkobjects/ImageBundle.hpp"
+#include "workers/Renderer.hpp"
 
 namespace vcc {
 class Setup;
@@ -18,47 +20,24 @@ class Task
 {
 public:
   Task(Setup* s,
-       VCEngine* e,
+       VCEngine* e);
+  ~Task();
+  void run(
        stbi_uc* image,
        vk::Extent2D imageSize,
        size_t bSize,
        std::vector<std::pair<Vertex, uint32_t>>* verts);
-  ~Task();
-  void run();
 
 private:
   VCEngine* engine;
   Setup* setup;
 
-  ImageBundle texture;
-  vk::Sampler textureSampler;
-
-  std::vector<std::pair<Vertex, uint32_t>>* vertices;
-  Buffer vertexB;
-  Buffer indexB;
-
-  std::vector<Buffer> uniformB;
-
-  vk::DescriptorPool descriptorPool;
-  std::vector<vk::DescriptorSet> descriptorSets;
-
-  std::vector<vk::Semaphore> imageAvailableS;
-  std::vector<vk::Semaphore> renderFinishedS;
-  std::vector<vk::Fence> inFlightF;
-  std::vector<vk::Fence> imagesInFlightF;
-  size_t currFrame = 0;
-
   Renderer<3> render;
   Renderer<3> mover;
 
-  bool resized = false;
+  std::atomic_flag resized;
 
-  vk::ImageMemoryBarrier transitionImageLayout(vk::Image image,
-                                               vk::Format format,
-                                               vk::ImageLayout old,
-                                               vk::ImageLayout neo,
-                                               uint32_t mip);
-  ImageBundle loadImage(void* data, vk::Extent2D size, vk::Format format);
+  void loadContent(void* data, size_t, vk::Buffer in);
 };
 }
 #endif

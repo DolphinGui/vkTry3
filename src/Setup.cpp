@@ -8,7 +8,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "Setup.hpp"
-#include "SingleTimeCmdBuffer.hpp"
+#include "workers/Renderer.hpp"
 #include "VCEngine.hpp"
 #include "data/Vertex.hpp"
 #include "vkobjects/Buffer.hpp"
@@ -393,8 +393,8 @@ Setup::createFramebuffers()
 {
   swapChainFramebuffers.resize(swapChainImageViews.size());
   for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-    std::array<vk::ImageView, 3> attachments = { color.view.get(),
-                                                 depth.view.get(),
+    std::array<vk::ImageView, 3> attachments = { color.view,
+                                                 depth.view,
                                                  swapChainImageViews[i] };
     const vk::FramebufferCreateInfo framebufferInfo({},
                                                     renderPass,

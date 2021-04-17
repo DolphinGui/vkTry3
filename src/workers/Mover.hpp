@@ -1,5 +1,6 @@
 #ifndef MOVER_H_INCLUDE
 #define MOVER_H_INCLUDE
+#include <atomic>
 #include <bits/stdint-uintn.h>
 #include <condition_variable>
 #include <mutex>
@@ -34,7 +35,7 @@ private:
   std::vector<vcc::CmdBuffer> buffers;
   std::queue<RecordJob> recordJobs;
   std::vector<SubmitJob> submitJobs;
-  bool alive;
+  std::atomic_flag alive;
   std::condition_variable deathtoll;
 
   vcc::SubmitJob record(const RecordJob& job);
