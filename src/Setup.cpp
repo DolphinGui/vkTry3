@@ -70,8 +70,8 @@ Setup::~Setup()
   for (auto fbuffer : swapChainFramebuffers) {
     env->device.destroyFramebuffer(fbuffer);
   }
-  env->device.destroyPipeline(graphicsPipeline);
-  env->device.destroyPipelineLayout(pipelineLayout);
+  env->device.destroyPipeline(pipeline.second);
+  env->device.destroyPipelineLayout(pipeline.first);
   env->device.destroyRenderPass(renderPass);
   for (auto view : swapChainImageViews) {
     env->device.destroyImageView(view);
@@ -160,9 +160,11 @@ Setup::createRenderPass()
   renderPassInfo.pSubpasses = &subpass;
   renderPassInfo.dependencyCount = 1;
   renderPassInfo.pDependencies = &dependency;
-  if (env->device.createRenderPass(&renderPassInfo, nullptr, &renderPass) !=
+  vk::RenderPass pass;
+  if (env->device.createRenderPass(&renderPassInfo, nullptr, &pass) !=
       vk::Result::eSuccess)
     throw std::runtime_error("failed to create render pass");
+  return pass;
 }
 
 vk::Format
