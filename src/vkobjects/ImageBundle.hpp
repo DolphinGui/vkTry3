@@ -14,7 +14,6 @@ public:
   const vk::Image image;
   const VmaAllocation mem;
   const vk::ImageView view;
-  ImageBundle() = default;
   ~ImageBundle();
 
   static ImageBundle create(uint32_t width,

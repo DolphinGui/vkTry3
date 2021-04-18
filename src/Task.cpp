@@ -13,10 +13,10 @@ Task::Task(Setup* s, VCEngine* e)
   , engine(e)
   , render(e->graphicsQueue,
            e->device,
-           e->findQueueFamilies(e->physicalDevice).graphicsFamily.value())
+           e->queueIndices.graphicsFamily.value())
   , mover(e->graphicsQueue, // change this later
           e->device,
-          e->findQueueFamilies(e->physicalDevice).graphicsFamily.value())
+          e->queueIndices.graphicsFamily.value())
 {}
 
 Task::~Task() {}

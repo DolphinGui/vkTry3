@@ -30,7 +30,7 @@ struct QueueFamilyIndices
            transferFamily.has_value();
   }
 #ifndef NDEBUG
-  std::string info()
+  std::string const info() const
   {
     std::string results("Family Indicies: ");
     std::array<std::string, 3> familyNames(
@@ -67,6 +67,7 @@ public:
   const vk::PhysicalDevice physicalDevice;
   const vk::Device device;
   const vk::PhysicalDeviceMemoryProperties physProps;
+  const QueueFamilyIndices queueIndices;
   const vk::Queue graphicsQueue;
   const vk::Queue presentQueue;
 
@@ -90,7 +91,7 @@ public:
 
   void memProps(vk::PhysicalDeviceMemoryProperties* out);
 
-  QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device) const;
+  
 
 private:
   static constexpr std::array<const char*, 1> validationLayers{
@@ -107,6 +108,8 @@ private:
   int deviceSuitability(vk::PhysicalDevice device);
   vk::Device createLogicalDevice();
   GLFWwindow* initGLFW(GLFWwindow* w);
+
+  QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device) const;
 
   static void framebufferResizeCallback(GLFWwindow* window,
                                         int width,

@@ -104,7 +104,8 @@ VCEngine::VCEngine(int width, int height, const char* name, GLFWwindow* w)
         "vkGetInstanceProcAddr")))
   , device(createLogicalDevice())
   , debugMessenger(createDebugMessenger(instance))
-  , vmaAlloc(vmaInfo(vkVersion, physicalDevice, device, instance))
+  , vmaAlloc(vmaInfo(vkVersion, physicalDevice, device, instance)),
+  queueIndices(findQueueFamilies(physicalDevice))
 {}
 
 VCEngine::~VCEngine()
@@ -160,7 +161,7 @@ VCEngine::initGLFW(GLFWwindow* w)
 vk::Device
 VCEngine::createLogicalDevice()
 {
-  QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+  QueueFamilyIndices indices = queueIndices;
   std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
   std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(),
                                              indices.presentFamily.value() };

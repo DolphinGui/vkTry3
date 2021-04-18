@@ -1,84 +1,87 @@
 #ifndef SETUP_H_INCLUDE
 #define SETUP_H_INCLUDE
 #include <bits/stdint-uintn.h>
-#include <string_view>
-#include <vulkan/vulkan.hpp>
-#include <vector>
 #include <fstream>
 #include <mutex>
+#include <string_view>
+#include <utility>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "vkobjects/ImageBundle.hpp"
 #include "workers/Renderer.hpp"
 
 using namespace vcc;
-namespace vcc{
-class Setup{
+namespace vcc {
+class Setup
+{
 public:
   VCEngine* env;
 
   Setup(VCEngine* engine);
   ~Setup();
 
-  
-
 private:
-friend class Renderer<3>;
+  friend class Renderer<3>;
 
-  vk::SwapchainKHR swapChain;
-  std::vector<vk::Image> swapChainImages;
-  vk::Format swapChainImageFormat;
-  vk::Extent2D swapChainExtent;
-  std::vector<vk::ImageView> swapChainImageViews;
-  std::vector<vk::Framebuffer> swapChainFramebuffers;
+  const vk::SwapchainKHR swapChain;
+  const std::vector<vk::Image> swapChainImages;
+  const vk::SurfaceFormatKHR swapChainImageFormat;
+  const vk::Extent2D swapChainExtent;
+  const vk::SurfaceCapabilitiesKHR capabilities;
+  const std::vector<vk::ImageView> swapChainImageViews;
+  const std::vector<vk::Framebuffer> swapChainFramebuffers;
 
-  vk::RenderPass renderPass;
-  vk::DescriptorSetLayout descriptorSetLayout;
-  vk::PipelineLayout pipelineLayout;
-  vk::Pipeline graphicsPipeline;
+  const vk::RenderPass renderPass;
+  const vk::DescriptorSetLayout descriptorSetLayout;
+  const std::pair<vk::PipelineLayout, vk::Pipeline> pipeline;
 
-  ImageBundle color;
-  ImageBundle depth;
+  const ImageBundle color;
+  const ImageBundle depth;
 
-  vk::Queue graphicsQueue;
-  std::mutex graphicsLock;
-  vk::Queue presentQueue;
-  vk::Queue transferQueue;
+  const vk::Queue graphicsQueue;
+  const std::mutex graphicsLock;
+  const vk::Queue presentQueue;
+  const vk::Queue transferQueue;
 
-  void createSwapChain();
-  void createRenderPass();
-  void createDescriptorSetLayout();
-  void createGraphicsPipeline();
+  vk::SwapchainKHR createSwap();
+  vk::SurfaceFormatKHR getSwapFormat();
+  vk::Extent2D getSurfaceExtent();
+
+  vk::RenderPass createRenderPass();
+  vk::DescriptorSetLayout createDescriptorSetLayout();
+  std::pair<vk::PipelineLayout, vk::Pipeline> createGraphicsPipeline();
   void createDepthResources();
-  void createFramebuffers();
-  
+  std::vector<vk::Framebuffer> createFramebuffers();
+
   vk::ShaderModule createShaderModule(const std::vector<char>& code);
-  vk::ImageView createImageView(vk::Image image,
-    vk::Format format, vk::ImageAspectFlags aspectFlags,
-    uint32_t mipLevels);
-  vk::Format findSupportedFormat(
-    const std::vector<vk::Format>& candidates,
-    vk::ImageTiling tiling,
-    vk::FormatFeatureFlags features);
-    
-  //TODO: change this to std::byte at some point
-  static std::vector<char> readFile(const std::string_view& filename) {
-      std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
+  std::vector<vk::ImageView> createImageView(std::vector<vk::Image>,
+                                             vk::Format,
+                                             vk::ImageAspectFlags,
+                                             uint32_t mipLevels);
+  vk::Format findSupportedFormat(const std::vector<vk::Format>& candidates,
+                                 vk::ImageTiling tiling,
+                                 vk::FormatFeatureFlags features);
 
-      if (!file.is_open()) {
-          throw std::runtime_error("failed to open file!");
-      }
+  // TODO: change this to std::byte at some point
+  static std::vector<char> readFile(const std::string_view& filename)
+  {
+    std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
 
-      size_t fileSize = (size_t) file.tellg();
-      std::vector<char> buffer(fileSize);
+    if (!file.is_open()) {
+      throw std::runtime_error("failed to open file!");
+    }
 
-      file.seekg(0);
-      file.read(buffer.data(), fileSize);
+    size_t fileSize = (size_t)file.tellg();
+    std::vector<char> buffer(fileSize);
 
-      file.close();
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
 
-      return buffer;
+    file.close();
+
+    return buffer;
   }
-
 };
 }
 #endif
