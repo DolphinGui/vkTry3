@@ -80,7 +80,7 @@ public:
 
   const VmaAllocator vmaAlloc;
 
-  vk::Extent2D framebufferSize()
+  vk::Extent2D  framebufferSize() const
   {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);

@@ -6,32 +6,31 @@
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
+#include "VulkanMemoryAllocator/src/VmaUsage.h"
 
 namespace vcc {
 class ImageBundle
 {
 public:
-  const vk::Image image;
-  const VmaAllocation mem;
-  const vk::ImageView view;
+  vk::Image image;
+  VmaAllocation mem;
+  vk::ImageView view;
   ~ImageBundle();
 
-  static ImageBundle create(uint32_t width,
-                     uint32_t height,
-                     uint32_t mipLevels,
-                     vk::SampleCountFlagBits numSamples,
-                     vk::Format format,
-                     vk::ImageTiling tiling,
-                     vk::ImageUsageFlags usage,
-                     vk::MemoryPropertyFlags properties,
-                     VCEngine* env,
-                     vk::ImageAspectFlags viewAspectFlags = {});
-  uint32_t findMemoryType(uint32_t typeFilter,
-                          vk::MemoryPropertyFlags properties,
-                          const vk::PhysicalDevice* physicalDevice);
+  static ImageBundle create(const vk::ImageCreateInfo&,
+                            const VmaAllocationCreateInfo&,
+                            VCEngine* env,
+                            vk::ImageAspectFlags viewAspectFlags = {});
+  static uint32_t findMemoryType(uint32_t typeFilter,
+                                 vk::MemoryPropertyFlags properties,
+                                 const vk::PhysicalDevice& physicalDevice);
 
 private:
-  ImageBundle(vk::Image, VmaAllocation, vk::ImageView, vk::Device, const VmaAllocator&);
+  ImageBundle(vk::Image,
+              VmaAllocation,
+              vk::ImageView,
+              vk::Device,
+              const VmaAllocator&);
   const vk::Device dev;
   const VmaAllocator& alloc;
 };

@@ -10,186 +10,32 @@
 #include "Setup.hpp"
 #include "VCEngine.hpp"
 #include "data/Vertex.hpp"
-#include "vkobjects/Buffer.hpp"
 #include "vkobjects/ImageBundle.hpp"
 #include "workers/Renderer.hpp"
 
-namespace vcc {
-Setup::Setup(VCEngine* engine)
-  : env(engine)
-  , swapChainImageFormat(getSwapFormat())
-  , capabilities(
-      env->physicalDevice.getSurfaceCapabilitiesKHR(env->surface, env->dload))
-  , swapChainExtent(getSurfaceExtent())
-  , swapChain(createSwap())
-  , swapChainImages(env->device.getSwapchainImagesKHR(swapChain, env->dload))
-  , swapChainImageViews(createImageView(swapChainImages,
-                                        swapChainImageFormat.format,
-                                        vk::ImageAspectFlagBits::eColor,
-                                        1))
-  , renderPass(createRenderPass())
-  , descriptorSetLayout(createDescriptorSetLayout())
-  , pipeline(createGraphicsPipeline())
-  , graphicsQueue(
-      engine->device.getQueue(0, env->queueIndices.graphicsFamily.value()))
-  , presentQueue(
-      engine->device.getQueue(0, env->queueIndices.presentFamily.value()))
-  , transferQueue(
-      engine->device.getQueue(0, env->queueIndices.transferFamily.value()))
-  , color(ImageBundle::create(swapChainExtent.width,
-                              swapChainExtent.height,
-                              1,
-                              env->msaaSamples,
-                              swapChainImageFormat.format,
-                              vk::ImageTiling::eOptimal,
-                              vk::ImageUsageFlagBits::eTransientAttachment |
-                                vk::ImageUsageFlagBits::eColorAttachment,
-                              vk::MemoryPropertyFlagBits::eDeviceLocal,
-                              env,
-                              vk::ImageAspectFlagBits::eColor))
-  , depth(ImageBundle::create(
-      swapChainExtent.width,
-      swapChainExtent.height,
-      1,
-      env->msaaSamples,
-      findSupportedFormat({ vk::Format::eD32Sfloat,
-                            vk::Format::eD32SfloatS8Uint,
-                            vk::Format::eD24UnormS8Uint },
-                          vk::ImageTiling::eOptimal,
-                          vk::FormatFeatureFlagBits::eDepthStencilAttachment),
-      vk::ImageTiling::eOptimal,
-      vk::ImageUsageFlagBits::eDepthStencilAttachment,
-      vk::MemoryPropertyFlagBits::eDeviceLocal,
-      env,
-      vk::ImageAspectFlagBits::eDepth))
-  , swapChainFramebuffers(createFramebuffers())
-{}
-
-Setup::~Setup()
+namespace {
+// TODO: change this to std::byte at some point
+std::vector<char>
+readFile(const std::string_view& filename)
 {
-  for (auto fbuffer : swapChainFramebuffers) {
-    env->device.destroyFramebuffer(fbuffer);
-  }
-  env->device.destroyPipeline(pipeline.second);
-  env->device.destroyPipelineLayout(pipeline.first);
-  env->device.destroyRenderPass(renderPass);
-  for (auto view : swapChainImageViews) {
-    env->device.destroyImageView(view);
-  }
-  env->device.destroySwapchainKHR(swapChain);
-  env->device.destroyDescriptorSetLayout(descriptorSetLayout);
-}
+  std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
 
-vk::RenderPass
-Setup::createRenderPass()
-{
-  vk::AttachmentDescription colorAttachment(
-    {},
-    swapChainImageFormat.format,
-    env->msaaSamples,
-    vk::AttachmentLoadOp::eClear,
-    vk::AttachmentStoreOp::eStore,
-    vk::AttachmentLoadOp::eDontCare,
-    vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined,
-    vk::ImageLayout::eColorAttachmentOptimal);
-
-  vk::AttachmentDescription depthAttachment(
-    {},
-    findSupportedFormat({ vk::Format::eD32Sfloat,
-                          vk::Format::eD32SfloatS8Uint,
-                          vk::Format::eD24UnormS8Uint },
-                        vk::ImageTiling::eOptimal,
-                        vk::FormatFeatureFlagBits::eDepthStencilAttachment),
-    env->msaaSamples,
-    vk::AttachmentLoadOp::eClear,
-    vk::AttachmentStoreOp::eDontCare,
-    vk::AttachmentLoadOp::eDontCare,
-    vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined,
-    vk::ImageLayout::eDepthStencilAttachmentOptimal);
-
-  vk::AttachmentDescription colorAttachmentResolve(
-    {},
-    swapChainImageFormat.format,
-    vk::SampleCountFlagBits::e1,
-    vk::AttachmentLoadOp::eDontCare,
-    vk::AttachmentStoreOp::eStore,
-    vk::AttachmentLoadOp::eDontCare,
-    vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined,
-    vk::ImageLayout::ePresentSrcKHR);
-
-  vk::AttachmentReference colorAttachmentRef(
-    0, vk::ImageLayout::eColorAttachmentOptimal);
-
-  vk::AttachmentReference depthAttachmentRef(
-    1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
-
-  vk::AttachmentReference colorAttachmentResolveRef(
-    2, vk::ImageLayout::eColorAttachmentOptimal);
-
-  vk::SubpassDescription subpass({},
-                                 vk::PipelineBindPoint::eGraphics,
-                                 {},
-                                 {},
-                                 1,
-                                 &colorAttachmentRef,
-                                 &colorAttachmentResolveRef,
-                                 &depthAttachmentRef);
-
-  vk::SubpassDependency dependency{};
-  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-  dependency.dstSubpass = 0;
-  dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
-                            vk::PipelineStageFlagBits::eEarlyFragmentTests;
-  dependency.srcAccessMask = {};
-  dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
-                            vk::PipelineStageFlagBits::eEarlyFragmentTests;
-  dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite |
-                             vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-
-  std::array<vk::AttachmentDescription, 3> attachments = {
-    colorAttachment, depthAttachment, colorAttachmentResolve
-  };
-  vk::RenderPassCreateInfo renderPassInfo{};
-  renderPassInfo.sType = vk::StructureType::eRenderPassCreateInfo;
-  renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-  renderPassInfo.pAttachments = attachments.data();
-  renderPassInfo.subpassCount = 1;
-  renderPassInfo.pSubpasses = &subpass;
-  renderPassInfo.dependencyCount = 1;
-  renderPassInfo.pDependencies = &dependency;
-  vk::RenderPass pass;
-  if (env->device.createRenderPass(&renderPassInfo, nullptr, &pass) !=
-      vk::Result::eSuccess)
-    throw std::runtime_error("failed to create render pass");
-  return pass;
-}
-
-vk::Format
-Setup::findSupportedFormat(const std::vector<vk::Format>& candidates,
-                           vk::ImageTiling tiling,
-                           vk::FormatFeatureFlags features)
-{
-  for (vk::Format format : candidates) {
-    vk::FormatProperties props;
-    env->physicalDevice.getFormatProperties(format, &props);
-
-    if (tiling == vk::ImageTiling::eLinear &&
-        (props.linearTilingFeatures & features) == features) {
-      return format;
-    } else if (tiling == vk::ImageTiling::eOptimal &&
-               (props.optimalTilingFeatures & features) == features) {
-      return format;
-    }
+  if (!file.is_open()) {
+    throw std::runtime_error("failed to open file!");
   }
 
-  throw std::runtime_error("failed to find supported format!");
-}
+  size_t fileSize = (size_t)file.tellg();
+  std::vector<char> buffer(fileSize);
 
+  file.seekg(0);
+  file.read(buffer.data(), fileSize);
+
+  file.close();
+
+  return buffer;
+}
 vk::DescriptorSetLayout
-Setup::createDescriptorSetLayout()
+createDescriptorSetLayout(const vk::Device device)
 {
   vk::DescriptorSetLayoutBinding uboLayoutBinding{};
   uboLayoutBinding.binding = 0;
@@ -214,17 +60,35 @@ Setup::createDescriptorSetLayout()
   layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
   layoutInfo.pBindings = bindings.data();
   vk::DescriptorSetLayout set;
-  if (env->device.createDescriptorSetLayout(&layoutInfo, nullptr, &set) !=
+  if (device.createDescriptorSetLayout(&layoutInfo, nullptr, &set) !=
       vk::Result::eSuccess)
     throw std::runtime_error("failed to create render pass");
   return set;
 }
 
+vk::ShaderModule
+createShaderModule(const vk::Device device, const std::vector<char>& code)
+{
+  vk::ShaderModuleCreateInfo createInfo{};
+  createInfo.sType = vk::StructureType::eShaderModuleCreateInfo;
+  createInfo.codeSize = code.size();
+  createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+  vk::ShaderModule shaderModule;
+  if (device.createShaderModule(&createInfo, nullptr, &shaderModule) !=
+      vk::Result::eSuccess)
+    throw std::runtime_error("failed to create render pass");
+  ;
+
+  return shaderModule;
+}
+
 std::vector<vk::ImageView>
-Setup::createImageView(std::vector<vk::Image> images,
-                       vk::Format format,
-                       vk::ImageAspectFlags aspectFlags,
-                       uint32_t mipLevels)
+createImageView(const vk::Device device,
+                const std::vector<vk::Image>& images,
+                const vk::Format& format,
+                vk::ImageAspectFlags aspectFlags,
+                uint32_t mipLevels)
 {
   std::vector<vk::ImageView> results(images.size());
   for (int i = 0; i < images.size(); i++) {
@@ -240,7 +104,7 @@ Setup::createImageView(std::vector<vk::Image> images,
     viewInfo.subresourceRange.layerCount = 1;
 
     vk::ImageView imageView;
-    if (env->device.createImageView(&viewInfo, nullptr, &imageView) !=
+    if (device.createImageView(&viewInfo, nullptr, &imageView) !=
         vk::Result::eSuccess)
       throw std::runtime_error("failed to create render pass");
     results[i] = imageView;
@@ -250,14 +114,19 @@ Setup::createImageView(std::vector<vk::Image> images,
 }
 
 std::pair<vk::PipelineLayout, vk::Pipeline>
-Setup::createGraphicsPipeline()
+createGraphicsPipeline(vk::Device device,
+                       vk::SampleCountFlagBits msaaSamples,
+                       vk::Extent2D swapChainExtent,
+                       const vk::DescriptorSetLayout* descriptorSetLayout,
+                       const vk::RenderPass& renderpass)
 {
-
   auto vertShaderCode = readFile("../shaders/vert.spv");
   auto fragShaderCode = readFile("../shaders/frag.spv");
 
-  vk::ShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-  vk::ShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+  vk::ShaderModule vertShaderModule =
+    createShaderModule(device, vertShaderCode);
+  vk::ShaderModule fragShaderModule =
+    createShaderModule(device, fragShaderCode);
 
   vk::PipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
@@ -315,7 +184,7 @@ Setup::createGraphicsPipeline()
 
   vk::PipelineMultisampleStateCreateInfo multisampling{};
   multisampling.sampleShadingEnable = VK_FALSE;
-  multisampling.rasterizationSamples = env->msaaSamples;
+  multisampling.rasterizationSamples = msaaSamples;
 
   vk::PipelineDepthStencilStateCreateInfo depthStencil{};
   depthStencil.depthTestEnable = VK_TRUE;
@@ -342,9 +211,9 @@ Setup::createGraphicsPipeline()
 
   vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.setLayoutCount = 1;
-  pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayout;
   vk::PipelineLayout layout;
-  if (env->device.createPipelineLayout(&pipelineLayoutInfo, nullptr, &layout) !=
+  if (device.createPipelineLayout(&pipelineLayoutInfo, nullptr, &layout) !=
       vk::Result::eSuccess)
     throw std::runtime_error("failed to create render pass");
 
@@ -359,38 +228,26 @@ Setup::createGraphicsPipeline()
   pipelineInfo.pDepthStencilState = &depthStencil;
   pipelineInfo.pColorBlendState = &colorBlending;
   pipelineInfo.layout = layout;
-  pipelineInfo.renderPass = renderPass;
+  pipelineInfo.renderPass = renderpass;
   pipelineInfo.subpass = 0;
   pipelineInfo.basePipelineHandle = vk::Pipeline(nullptr);
   vk::Pipeline pipes;
-  if (env->device.createGraphicsPipelines(
+  if (device.createGraphicsPipelines(
         vk::PipelineCache(nullptr), 1, &pipelineInfo, nullptr, &pipes) !=
       vk::Result::eSuccess)
     throw std::runtime_error("failed to create render pass");
-  env->device.destroyShaderModule(fragShaderModule);
-  env->device.destroyShaderModule(vertShaderModule);
+  device.destroyShaderModule(fragShaderModule);
+  device.destroyShaderModule(vertShaderModule);
   return { layout, pipes };
 }
 
-vk::ShaderModule
-Setup::createShaderModule(const std::vector<char>& code)
-{
-  vk::ShaderModuleCreateInfo createInfo{};
-  createInfo.sType = vk::StructureType::eShaderModuleCreateInfo;
-  createInfo.codeSize = code.size();
-  createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-  vk::ShaderModule shaderModule;
-  if (env->device.createShaderModule(&createInfo, nullptr, &shaderModule) !=
-      vk::Result::eSuccess)
-    throw std::runtime_error("failed to create render pass");
-  ;
-
-  return shaderModule;
-}
-
 std::vector<vk::Framebuffer>
-Setup::createFramebuffers()
+createFramebuffers(vk::Device device,
+                   vk::Extent2D swapChainExtent,
+                   const vcc::ImageBundle& color,
+                   const vcc::ImageBundle& depth,
+                   const vk::RenderPass& renderpass,
+                   const std::vector<vk::ImageView>& swapChainImageViews)
 {
   std::vector<vk::Framebuffer> frames(swapChainImageViews.size());
   for (size_t i = 0; i < swapChainImageViews.size(); i++) {
@@ -398,13 +255,13 @@ Setup::createFramebuffers()
                                                  depth.view,
                                                  swapChainImageViews[i] };
     const vk::FramebufferCreateInfo framebufferInfo({},
-                                                    renderPass,
+                                                    renderpass,
                                                     static_cast<uint32_t>(3),
                                                     attachments.data(),
                                                     swapChainExtent.width,
                                                     swapChainExtent.height,
                                                     1);
-    if (env->device.createFramebuffer(&framebufferInfo, nullptr, &frames[i]) !=
+    if (device.createFramebuffer(&framebufferInfo, nullptr, &frames[i]) !=
         vk::Result::eSuccess) {
       throw std::runtime_error("failed to create framebuffer!");
     }
@@ -413,10 +270,13 @@ Setup::createFramebuffers()
 }
 
 vk::SwapchainKHR
-Setup::createSwap()
+createSwap(const vcc::VCEngine& env,
+           const vk::SurfaceCapabilitiesKHR& capabilities,
+           const vk::SurfaceFormatKHR& swapChainImageFormat,
+           vk::Extent2D swapChainExtent)
 {
   std::vector<vk::PresentModeKHR> presentModes =
-    env->physicalDevice.getSurfacePresentModesKHR(env->surface, env->dload);
+    env.physicalDevice.getSurfacePresentModesKHR(env.surface, env.dload);
   vk::PresentModeKHR presentMode;
   for (const auto& availablePresentMode : presentModes) {
     if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
@@ -430,12 +290,12 @@ Setup::createSwap()
       imageCount > capabilities.maxImageCount) {
     imageCount = capabilities.maxImageCount;
   }
-  uint32_t queueFamilyIndices[] = { env->queueIndices.graphicsFamily.value(),
-                                    env->queueIndices.presentFamily.value() };
+  uint32_t queueFamilyIndices[] = { env.queueIndices.graphicsFamily.value(),
+                                    env.queueIndices.presentFamily.value() };
   vk::SharingMode share;
   uint32_t queueFamilyIndexCount;
   uint32_t* queueFamilyIndixes;
-  if (env->queueIndices.graphicsFamily != env->queueIndices.presentFamily) {
+  if (env.queueIndices.graphicsFamily != env.queueIndices.presentFamily) {
     share = vk::SharingMode::eConcurrent;
     queueFamilyIndexCount = 2;
     queueFamilyIndixes = queueFamilyIndices;
@@ -444,7 +304,7 @@ Setup::createSwap()
   }
   vk::SwapchainCreateInfoKHR createInfo(
     {},
-    env->surface,
+    env.surface,
     imageCount,
     swapChainImageFormat.format,
     swapChainImageFormat.colorSpace,
@@ -459,17 +319,17 @@ Setup::createSwap()
     presentMode,
     VK_TRUE);
   vk::SwapchainKHR swap;
-  if (env->device.createSwapchainKHR(&createInfo, nullptr, &swap) !=
+  if (env.device.createSwapchainKHR(&createInfo, nullptr, &swap) !=
       vk::Result::eSuccess) {
     throw std::runtime_error("failed to create swap chain!");
   }
   return swap;
 }
 vk::SurfaceFormatKHR
-Setup::getSwapFormat()
+getSwapFormat(const vcc::VCEngine& env)
 {
   std::vector<vk::SurfaceFormatKHR> formats =
-    env->physicalDevice.getSurfaceFormatsKHR(env->surface, env->dload);
+    env.physicalDevice.getSurfaceFormatsKHR(env.surface, env.dload);
   vk::SurfaceFormatKHR surfaceFormat;
   for (const auto& availableFormat : formats) {
     if (availableFormat.format == vk::Format::eB8G8R8A8Srgb &&
@@ -480,13 +340,14 @@ Setup::getSwapFormat()
   return formats[0];
 }
 vk::Extent2D
-Setup::getSurfaceExtent()
+getSurfaceExtent(const vcc::VCEngine& env,
+                 const vk::SurfaceCapabilitiesKHR& capabilities)
 {
   vk::Extent2D extent;
   if (capabilities.currentExtent.width != UINT32_MAX) {
     extent = capabilities.currentExtent;
   } else {
-    vk::Extent2D actualExtent(env->framebufferSize());
+    vk::Extent2D actualExtent(env.framebufferSize());
 
     actualExtent.width =
       std::max(capabilities.minImageExtent.width,
@@ -499,4 +360,210 @@ Setup::getSurfaceExtent()
   }
   return extent;
 };
+vk::Format
+findSupportedFormat(vk::PhysicalDevice physicalDevice,
+                    const std::vector<vk::Format>& candidates,
+                    vk::ImageTiling tiling,
+                    vk::FormatFeatureFlags features)
+{
+  for (vk::Format format : candidates) {
+    vk::FormatProperties props;
+    physicalDevice.getFormatProperties(format, &props);
+
+    if (tiling == vk::ImageTiling::eLinear &&
+        (props.linearTilingFeatures & features) == features) {
+      return format;
+    } else if (tiling == vk::ImageTiling::eOptimal &&
+               (props.optimalTilingFeatures & features) == features) {
+      return format;
+    }
+  }
+
+  throw std::runtime_error("failed to find supported format!");
+}
+vk::RenderPass
+createRenderPass(vk::Device device,
+                 vk::PhysicalDevice physicalDevice,
+                 vk::Format format,
+                 vk::SampleCountFlagBits msaaSamples)
+{
+  vk::AttachmentDescription colorAttachment(
+    {},
+    format,
+    msaaSamples,
+    vk::AttachmentLoadOp::eClear,
+    vk::AttachmentStoreOp::eStore,
+    vk::AttachmentLoadOp::eDontCare,
+    vk::AttachmentStoreOp::eDontCare,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eColorAttachmentOptimal);
+
+  vk::AttachmentDescription depthAttachment(
+    {},
+    findSupportedFormat(physicalDevice,
+                        { vk::Format::eD32Sfloat,
+                          vk::Format::eD32SfloatS8Uint,
+                          vk::Format::eD24UnormS8Uint },
+                        vk::ImageTiling::eOptimal,
+                        vk::FormatFeatureFlagBits::eDepthStencilAttachment),
+    msaaSamples,
+    vk::AttachmentLoadOp::eClear,
+    vk::AttachmentStoreOp::eDontCare,
+    vk::AttachmentLoadOp::eDontCare,
+    vk::AttachmentStoreOp::eDontCare,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
+  vk::AttachmentDescription colorAttachmentResolve(
+    {},
+    format,
+    vk::SampleCountFlagBits::e1,
+    vk::AttachmentLoadOp::eDontCare,
+    vk::AttachmentStoreOp::eStore,
+    vk::AttachmentLoadOp::eDontCare,
+    vk::AttachmentStoreOp::eDontCare,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::ePresentSrcKHR);
+
+  vk::AttachmentReference colorAttachmentRef(
+    0, vk::ImageLayout::eColorAttachmentOptimal);
+
+  vk::AttachmentReference depthAttachmentRef(
+    1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
+  vk::AttachmentReference colorAttachmentResolveRef(
+    2, vk::ImageLayout::eColorAttachmentOptimal);
+
+  vk::SubpassDescription subpass({},
+                                 vk::PipelineBindPoint::eGraphics,
+                                 {},
+                                 {},
+                                 1,
+                                 &colorAttachmentRef,
+                                 &colorAttachmentResolveRef,
+                                 &depthAttachmentRef);
+
+  vk::SubpassDependency dependency{};
+  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+  dependency.dstSubpass = 0;
+  dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
+                            vk::PipelineStageFlagBits::eEarlyFragmentTests;
+  dependency.srcAccessMask = {};
+  dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
+                            vk::PipelineStageFlagBits::eEarlyFragmentTests;
+  dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite |
+                             vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+
+  std::array<vk::AttachmentDescription, 3> attachments = {
+    colorAttachment, depthAttachment, colorAttachmentResolve
+  };
+  vk::RenderPassCreateInfo renderPassInfo{};
+  renderPassInfo.sType = vk::StructureType::eRenderPassCreateInfo;
+  renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+  renderPassInfo.pAttachments = attachments.data();
+  renderPassInfo.subpassCount = 1;
+  renderPassInfo.pSubpasses = &subpass;
+  renderPassInfo.dependencyCount = 1;
+  renderPassInfo.pDependencies = &dependency;
+  vk::RenderPass pass;
+  if (device.createRenderPass(&renderPassInfo, nullptr, &pass) !=
+      vk::Result::eSuccess)
+    throw std::runtime_error("failed to create render pass");
+  return pass;
+}
+}
+
+namespace vcc {
+Setup::Setup(VCEngine* engine)
+  : env(engine)
+  , capabilities(
+      env->physicalDevice.getSurfaceCapabilitiesKHR(env->surface, env->dload))
+  , swapChainExtent(getSurfaceExtent(*env, capabilities))
+  , swapChainImageFormat(getSwapFormat(*env))
+  , swapChain( // Test if this actually is unititialized
+      createSwap(*env, capabilities, swapChainImageFormat, swapChainExtent))
+  , swapChainImages(env->device.getSwapchainImagesKHR(swapChain, env->dload))
+  , swapChainImageViews(createImageView(env->device,
+                                        swapChainImages,
+                                        swapChainImageFormat.format,
+                                        vk::ImageAspectFlagBits::eColor,
+                                        1))
+  , renderPass(createRenderPass(env->device,
+                                env->physicalDevice,
+                                swapChainImageFormat.format,
+                                env->msaaSamples))
+  , descriptorSetLayout(createDescriptorSetLayout(env->device))
+  , pipeline(createGraphicsPipeline(env->device,
+                                    env->msaaSamples,
+                                    swapChainExtent,
+                                    &descriptorSetLayout,
+                                    renderPass))
+  , allocationInfo([]{
+    VmaAllocationCreateInfo create{};
+    create.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    return create;
+  }())
+  , graphicsQueue(
+      engine->device.getQueue(0, env->queueIndices.graphicsFamily.value()))
+  , presentQueue(
+      engine->device.getQueue(0, env->queueIndices.presentFamily.value()))
+  , transferQueue(
+      engine->device.getQueue(0, env->queueIndices.transferFamily.value()))
+  , color(ImageBundle::create(
+      vk::ImageCreateInfo({},
+                          vk::ImageType::e2D,
+                          swapChainImageFormat.format,
+                          { swapChainExtent.width, swapChainExtent.height, 1 },
+                          1,
+                          {},
+                          env->msaaSamples,
+                          vk::ImageTiling::eOptimal,
+                          vk::ImageUsageFlagBits::eTransientAttachment |
+                            vk::ImageUsageFlagBits::eColorAttachment,
+                          vk::SharingMode::eExclusive),
+      allocationInfo,
+      env,
+      vk::ImageAspectFlagBits::eColor))
+  , depth(ImageBundle::create(
+      vk::ImageCreateInfo(
+        {},
+        vk::ImageType::e2D,
+        findSupportedFormat(env->physicalDevice,
+                            { vk::Format::eD32Sfloat,
+                              vk::Format::eD32SfloatS8Uint,
+                              vk::Format::eD24UnormS8Uint },
+                            vk::ImageTiling::eOptimal,
+                            vk::FormatFeatureFlagBits::eDepthStencilAttachment),
+        { swapChainExtent.width, swapChainExtent.height, 1 },
+        1,
+        {},
+        env->msaaSamples,
+        vk::ImageTiling::eOptimal,
+        vk::ImageUsageFlagBits::eDepthStencilAttachment,
+        vk::SharingMode::eExclusive),
+      allocationInfo,
+      env,
+      vk::ImageAspectFlagBits::eDepth))
+  , swapChainFramebuffers(createFramebuffers(env->device,
+                                             swapChainExtent,
+                                             color,
+                                             depth,
+                                             renderPass,
+                                             swapChainImageViews))
+{}
+Setup::~Setup()
+{
+  for (auto fbuffer : swapChainFramebuffers) {
+    env->device.destroyFramebuffer(fbuffer);
+  }
+  env->device.destroyPipeline(pipeline.second);
+  env->device.destroyPipelineLayout(pipeline.first);
+  env->device.destroyRenderPass(renderPass);
+  for (auto view : swapChainImageViews) {
+    env->device.destroyImageView(view);
+  }
+  env->device.destroySwapchainKHR(swapChain);
+  env->device.destroyDescriptorSetLayout(descriptorSetLayout);
+}
+
 }

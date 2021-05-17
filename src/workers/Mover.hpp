@@ -10,36 +10,61 @@
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
-#include "jobs/RecordJob.hpp"
-#include "jobs/SubmitJob.hpp"
-#include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
-/* T is the amount of frames in flight
- */
-template<int T>
 class Mover
 {
 
 public:
-  Mover(vk::Queue& graphics, vk::Device& dev, uint32_t graphicsIndex);
+  Mover(vk::Queue& transfer,
+        vk::Device& dev,
+        uint32_t transferIndex,
+        uint32_t bufferCount = 1);
+  Mover(const Mover&) = delete;
+  Mover& operator= (const Mover&) = delete;
   ~Mover();
-  void start();
-  void submit(RecordJob record);
+
+  /*
+  This does not own the signal fence, and the user is expected
+  to keep the fence alive until it's signalled.
+  */
+  struct MoveJob
+  {
+    const vk::CommandBufferUsageFlags usage;
+    vk::Fence signal;
+    std::function<void(vk::CommandBuffer)> exec;
+    MoveJob(vk::CommandBuffer& buffer,
+            vk::CommandBufferUsageFlags usage,
+            std::function<void(vk::CommandBuffer)> exec,
+            vk::Fence signal = nullptr)
+      : commands(&buffer)
+      , usage(usage)
+      , exec(exec)
+      , signal(signal)
+    {}
+
+  private:
+    vk::CommandBuffer* commands;
+  };
+
+  void const wait();
+  void submit(MoveJob job);
 
 private:
-  vk::Device* dev;
+  vk::Device* device;
   vk::Queue* transferQueue;
   std::thread thread;
   vk::CommandPool pool;
-  std::vector<vcc::CmdBuffer> buffers;
-  std::queue<RecordJob> recordJobs;
-  std::vector<SubmitJob> submitJobs;
-  std::atomic_flag alive;
-  std::condition_variable deathtoll;
+  std::vector<vk::CommandBuffer> buffers;
+  std::queue<MoveJob> recordJobs;
+  std::atomic_bool alive;
+  std::mutex living;
+  std::mutex awakeLock;
+  std::condition_variable asleep;
+  const vk::Fence completed;
 
-  vcc::SubmitJob record(const RecordJob& job);
-  void present();
+  void record(const MoveJob& job, vk::CommandBuffer);
+  void doStuff();
 };
 }
 #endif

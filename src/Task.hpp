@@ -1,6 +1,7 @@
 #ifndef TASK_H_INCLUDE
 #define TASK_H_INCLUDE
 #include <atomic>
+#include <bits/stdint-uintn.h>
 #include <cstddef>
 #include <stb/stb_image.h>
 #include <utility>
@@ -9,7 +10,7 @@
 
 #include "data/UniformBufferObject.hpp"
 #include "data/Vertex.hpp"
-#include "vkobjects/Buffer.hpp"
+#include "vkobjects/BufferBundle.hpp"
 #include "vkobjects/ImageBundle.hpp"
 #include "workers/Renderer.hpp"
 
@@ -19,14 +20,13 @@ class Setup;
 class Task
 {
 public:
-  Task(Setup* s,
-       VCEngine* e);
+  Task(Setup* s, VCEngine* e);
   ~Task();
-  void run(
-       stbi_uc* image,
-       vk::Extent2D imageSize,
-       size_t bSize,
-       std::vector<std::pair<Vertex, uint32_t>>* verts);
+  void run(const stbi_uc* const image,
+           vk::Extent2D imageSize,
+           size_t bSize,
+           const std::vector<Vertex>& verticies,
+           const std::vector<uint32_t>& indicies);
 
 private:
   VCEngine* engine;
@@ -37,7 +37,17 @@ private:
 
   std::atomic_flag resized;
 
-  void loadContent(void* data, size_t, vk::Buffer in);
+  vk::Fence loadBuffer(const void* const data,
+                       size_t,
+                       vk::Device fence,
+                       vk::Buffer& out);
+  vk::Fence loadImage(const void* const data,
+                      size_t,
+                      vk::Extent2D,
+                      uint32_t mipLevels,
+                      vk::Format,
+                      vk::Device fence,
+                      vk::Image& out);
 };
 }
 #endif

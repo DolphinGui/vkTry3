@@ -4,81 +4,92 @@
 #include <exception>
 #include <mutex>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
 #include "Mover.hpp"
 #include "VCEngine.hpp"
-#include "jobs/RecordJob.hpp"
-#include "jobs/SubmitJob.hpp"
-#include "vkobjects/CmdBuffer.hpp"
 
 namespace vcc {
 
-template<int T>
-Mover<T>::Mover(vk::Queue& g, vk::Device& d, uint32_t transferIndex)
+Mover::Mover(vk::Queue& t,
+             vk::Device& d,
+             uint32_t transferIndex,
+             uint32_t bufferCount)
+  : device(&d)
+  , transferQueue(&t)
+  , pool(d.createCommandPool(
+      vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eTransient,
+                                transferIndex),
+      nullptr))
+  , buffers(d.allocateCommandBuffers(
+      vk::CommandBufferAllocateInfo(pool,
+                                    vk::CommandBufferLevel::ePrimary,
+                                    bufferCount)))
+  , completed(d.createFence(vk::FenceCreateInfo()))
+  , alive(true)
+
+{}
+
+Mover::~Mover()
 {
-  vk::CommandPoolCreateInfo poolInfo(vk::CommandPoolCreateFlagBits::eTransient,
-                                     transferIndex);
-  if (d.createCommandPool(&poolInfo, nullptr, &pool) != vk::Result::eSuccess)
-    throw std::runtime_error("failed to create command pool");
-  alive.test_and_set();
-}
-template<int T>
-Mover<T>::~Mover()
-{
-  alive.clear();
-  std::unique_lock<std::mutex> lock;
-  deathtoll.wait(lock);
+  alive = false; // deal with device loss later
+  living.lock();
+  device->waitForFences(completed, VK_TRUE, UINT64_MAX);
+  device->destroyFence(completed);
+  device->destroyCommandPool(pool);
 }
 
-template<int T>
 void
-Mover<T>::submit(RecordJob record)
+Mover::submit(MoveJob job)
 {
-  recordJobs.push(record);
+  recordJobs.push(job);
+  std::unique_lock<std::mutex> lock(awakeLock);
+  asleep.notify_one();
 }
 
-template<int T>
-vcc::SubmitJob
-Mover<T>::record(const RecordJob& job)
-{
-  for (vcc::CmdBuffer b : buffers) {
-    if (b.state == bufferStates::kInitial) {
-      job.record(b);
-    }
-  }
-  vcc::CmdBuffer buffer(
-    dev->allocateCommandBuffers(vk::CommandBufferAllocateInfo(
-      pool, vk::CommandBufferLevel::ePrimary, 1))[0]);
-  job.record(buffer);
-}
-
-template<int T>
 void
-Mover<T>::present()
+Mover::record(const MoveJob& job, vk::CommandBuffer buffer)
 {
-  transferQueue->submit(
-    vk::SubmitInfo(0, {}, {}, submitJobs.size(), submitJobs.data()));
+  buffer.begin(vk::CommandBufferBeginInfo(job.usage));
+  job.exec(buffer);
+  buffer.end();
 }
 
-template<int T>
-void
-Mover<T>::start()
+void const
+Mover::wait()
 {
-  std::vector<vcc::SubmitJob> jobs;
-  while (alive.test_and_set()) {
-    for (Frame frame : frames) {
-      jobs.reserve(recordJobs.size());
-      while (recordJobs.size() != 0) {
-        allocBuffers(recordJobs.front(), frame);
-        jobs.push_back(record(recordJobs.front(), frame));
+  if (!recordJobs.empty()) // TODO: deal with device loss later
+    device->waitForFences(completed, VK_TRUE, 100000);
+}
+
+void
+Mover::doStuff()
+{
+  std::lock_guard lock(living);
+  while (alive) {
+    if (!recordJobs.empty()) {
+      auto command = buffers.begin();
+      while (!recordJobs.empty() && command != buffers.end()) {
+        record(recordJobs.front(), *command++);
         recordJobs.pop();
       }
-      present(jobs, frame, nullptr);
+      if (device->getFenceStatus(completed) == vk::Result::eSuccess) {
+        device->waitForFences(
+          completed, VK_FALSE, 100000000); // TODO: deal with device loss later
+        device->resetCommandPool(pool);
+        device->resetFences(completed);
+      }
+      transferQueue->submit(
+        vk::SubmitInfo(0, {}, {}, buffers.size(), buffers.data(), {}, {}),
+        completed);
+    } else {
+      std::unique_lock<std::mutex> lock(awakeLock);
+      asleep.wait(lock, [&]() { return !recordJobs.empty(); });
     }
   }
-  deathtoll.notify_all();
 }
+
 }
