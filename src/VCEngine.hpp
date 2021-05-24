@@ -1,11 +1,12 @@
 #ifndef VCENNGINE_H_INCLUDE
 #define VCENNGINE_H_INCLUDE
-#include "VulkanMemoryAllocator/src/VmaUsage.h"
 #include <GLFW/glfw3.h>
 #include <array>
 #include <string>
 #include <string_view>
 #include <vulkan/vulkan.hpp>
+
+#include "VulkanMemoryAllocator/src/VmaUsage.h"
 
 #include <cstdint>
 #include <iostream>
