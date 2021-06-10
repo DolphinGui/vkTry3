@@ -4,7 +4,6 @@
 #include <vulkan/vulkan.hpp>
 
 #include "workers/RenderGroup.hpp"
-#include "workers/Renderer.hpp"
 
 namespace vcc {
 
@@ -12,22 +11,25 @@ namespace vcc {
     There must be at least N ImageViews in it */
 template<int N, int W>
 template<typename It>
-RenderGroup<N, W>::RenderGroup(const vcc::VCEngine engine,
-                               const vcc::Setup& setup,
-                               It swapChain,
+RenderGroup<N, W>::RenderGroup(const vcc::VCEngine& engine,
+                               const vk::ImageView& color,
+                               const vk::ImageView& depth,
+                               const vk::RenderPass& renderpass,
+                               vk::SwapchainKHR& swapchain,
+                               It swapChainImageViews,
                                vk::Extent2D size,
                                int layers)
   : device(device)
-  , images()
-  , jobquery()
+  , graphics(engine.graphicsQueue)
+  , swapchain(swapchain)
 {
   images.reserve(N);
   for (int n = N; n--;) {
-    std::array<vk::ImageView, 3> attatchments = { setup.color,
-                                                  setup.depth,
-                                                  *swapChain++ };
+    std::array<vk::ImageView, 3> attatchments = { color,
+                                                  depth,
+                                                  *swapChainImageViews++ };
     vk::FramebufferCreateInfo info({},
-                                   setup.renderPass,
+                                   renderpass,
                                    attatchments.size(),
                                    attatchments.data(),
                                    size.width,
@@ -38,9 +40,12 @@ RenderGroup<N, W>::RenderGroup(const vcc::VCEngine engine,
                        device.createFramebuffer(info) });
   }
   workers.fill(Worker(device,
-                      engine.graphicsQueue,
+                      graphics,
                       engine.queueIndices.graphicsFamily.value(),
                       jobquery,
+                      submitquery,
+                      wakeup,
+                      workload,
                       4,
                       images.begin()));
 }
@@ -50,6 +55,15 @@ void
 RenderGroup<N, W>::render(std::initializer_list<RenderJob> jobs)
 {
   jobquery.enqueue_bulk(jobs.begin(), jobs.size());
+  workload += jobs.size();
+  wakeup.notify_all();
+  device.waitForFences(images[currentImage].finishFence, VK_TRUE, 1'000'000);
+
+  device.acquireNextImageKHR(
+    swapchain, 1'000'000, images[currentImage].begin, nullptr);
+  // deal with resizing later
+
+  // std::array<vk::SubmitInfo, 5> submitResults
 }
 template<int N, int W>
 void
@@ -59,17 +73,24 @@ RenderGroup<N, W>::Worker::doStuff()
   std::array<RenderJob, maxJobGrab> jobs;
   while (alive) {
     Frame& frame = frames[frameNumber];
-    int result = jobquery.wait_dequeue_bulk(jobs.begin(), maxJobGrab);
-    allocBuffers(result, frame);
+    int result = jobquery.try_dequeue_bulk(jobs.begin(), maxJobGrab);
+    if(workload == 0){
+      std::unique_lock<std::mutex> lock{};
+      alarmclock.wait(lock);
+      continue;
+    }
     auto buffer = frame.buffers.begin();
     for (auto job = jobs.begin(); job != jobs.begin() + result; job++) {
-      job.execute(*buffer++);
+      job.record(*buffer++);
     }
-
-    graphics.submit(vk::SubmitInfo(
+    submitquery.enqueue(vk::SubmitInfo(
       1,
       &frame.start,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput, // This might change
+      vk::PipelineStageFlagBits::eColorAttachmentOutput, // This might change,
+                                                         // should probably
+                                                         // have a compiletime
+                                                         // thing to figure
+                                                         // this out
       result,
       frame.buffers.data(),
       1,

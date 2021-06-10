@@ -9,7 +9,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "vkobjects/ImageBundle.hpp"
-#include "workers/Renderer.hpp"
+#include "workers/RenderGroup.hpp"
 
 using namespace vcc;
 namespace vcc {
@@ -21,25 +21,26 @@ public:
   Setup(VCEngine* engine);
   ~Setup();
 
-  const ImageBundle color;
-  const ImageBundle depth;
-  const vk::RenderPass renderPass;
-
 private:
-
-  const vk::SwapchainKHR swapChain;
-  const std::vector<vk::Image> swapChainImages;
   const vk::SurfaceFormatKHR swapChainImageFormat;
   const vk::Extent2D swapChainExtent;
+
+public:
+  const vk::RenderPass renderPass;
+  const ImageBundle color;
+  const ImageBundle depth;
+
+private:
   const vk::SurfaceCapabilitiesKHR capabilities;
+  const vk::SwapchainKHR swapChain;
+  const std::vector<vk::Image> swapChainImages;
+
   const std::vector<vk::ImageView> swapChainImageViews;
   const std::vector<vk::Framebuffer> swapChainFramebuffers;
 
-  
   const vk::DescriptorSetLayout descriptorSetLayout;
-  const std::pair<vk::PipelineLayout, vk::Pipeline> pipeline;
-
-  
+  const std::pair<vk::PipelineLayout, vk::Pipeline>
+    pipeline; // figure out dynamic pipeline recreation
 
   const vk::Queue graphicsQueue;
   const std::mutex graphicsLock;

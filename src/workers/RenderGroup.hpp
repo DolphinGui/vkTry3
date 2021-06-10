@@ -3,43 +3,48 @@
 
 #include <array>
 #include <bits/stdint-uintn.h>
+#include <condition_variable>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <mutex>
 #include <queue>
 #include <tuple>
 #include <utility>
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
-#include "concurrentqueue/blockingconcurrentqueue.h"
+#include "concurrentqueue/concurrentqueue.h"
 
-#include "Setup.hpp"
 #include "VCEngine.hpp"
 
 namespace vcc {
-template<int N, int W>
+// This will use queue, do not try to use it along with this
+template<int F, int W>
 class RenderGroup
 {
 private:
   template<typename T>
-  using Queue = moodycamel::BlockingConcurrentQueue<T>;
+  using WorkQueue = moodycamel::ConcurrentQueue<T>;
   struct PresentImage
   {
     vk::Semaphore available;
     vk::Semaphore finished;
     vk::Framebuffer itself;
+    std::array<vk::Fence, W> finishFence;
   };
   struct RenderJob
   {
+    using Command = void (*)(vk::CommandBuffer, vk::Framebuffer);
     const vk::CommandBufferBeginInfo usage;
     vk::Framebuffer target;
-    RenderJob(std::function<void(vk::CommandBuffer, vk::Framebuffer)>&& buffer,
-              vk::CommandBufferBeginInfo usage)
-      : commands(std::move(buffer))
+    RenderJob(Command buffer,
+              vk::CommandBufferBeginInfo usage = vk::CommandBufferBeginInfo(
+                vk::CommandBufferUsageFlagBits::eOneTimeSubmit))
+      : commands(buffer)
       , usage(usage)
     {}
-    void execute(vk::CommandBuffer buffer)
+    void record(vk::CommandBuffer buffer)
     {
       buffer.begin(usage);
       commands(buffer, target);
@@ -47,7 +52,7 @@ private:
     }
 
   private:
-    std::function<void(vk::CommandBuffer, vk::Framebuffer)> commands;
+    const Command commands;
   };
 
   class Worker
@@ -55,17 +60,20 @@ private:
   private:
     struct Frame
     {
-      const vk::Device device;
+      // The amount of buffers allocated. Should probably be tested.
+      static constexpr int bufferCount = 1;
+      const vk::Device device; // non-owning
       const vk::CommandPool pool;
-      const vk::Semaphore start;
-      const vk::Semaphore complete;
-      const vk::Framebuffer image;
+      const vk::Semaphore start;    // non-owning
+      const vk::Semaphore complete; // non-owning
+      const vk::Fence finished;     // non-owning
+      const vk::Framebuffer image;  // non-owning
       const std::vector<vk::CommandBuffer> buffers;
 
       Frame(vk::Device d,
             vk::CommandPoolCreateInfo poolInfo,
-            int bufferCount,
-            PresentImage image)
+            PresentImage image,
+            int fenceIndex)
         : device(d)
         , pool(device.createCommandPool(poolInfo))
         , buffers(device.allocateCommandBuffers(
@@ -75,6 +83,7 @@ private:
         , start(image.available)
         , complete(image.finished)
         , image(image.itself)
+        , finished(image.finishFence[fenceIndex])
       {}
 
       ~Frame()
@@ -93,37 +102,51 @@ private:
     template<typename It>
     Worker(vk::Device device,
            vk::Queue graphics,
+           int workerIndex,
            uint32_t queueIndex,
-           Queue<RenderJob>& jobquery,
-           int initialBuffercount,
+           WorkQueue<RenderJob>& jobquery,
+           WorkQueue<vk::SubmitInfo>& submitquery,
+           std::condition_variable& alarmclock,
+           std::atomic<uint>& workload,
            It PresentImages)
       : device(device)
       , graphics(graphics)
       , jobquery(jobquery)
+      , submitquery(submitquery)
       , alive{ true }
       , living()
+      , alarmclock(alarmclock)
+      , workload(workload)
     {
       for (Frame& frame : frames) {
         frame = Frame(device,
                       vk::CommandPoolCreateInfo(
                         vk::CommandPoolCreateFlagBits::eTransient, queueIndex),
-                      initialBuffercount,
-                      *PresentImages++);
+                      *PresentImages++,
+                      workerIndex);
       }
+    }
+    ~Worker()
+    {
+      alive = false;
+      std::lock_guard lock(living);
+      graphics.waitIdle();
     }
 
   private:
-    std::array<Frame, N> frames;
+    std::array<Frame, F> frames;
     std::thread thread;
-    const vk::Device device;
-    const vk::Queue graphics;
+    const vk::Device device;  // non-owning
+    const vk::Queue graphics; // non-owning
     std::atomic_bool alive;
     std::mutex living;
     int frameNumber{};
-    const Queue<RenderJob>& jobquery;
+    const WorkQueue<RenderJob>& jobquery;
+    const WorkQueue<RenderJob>& submitquery;
+    std::condition_variable& alarmclock;
+    std::atomic<uint>& workload;
     // The maximum amount of jobs this can grab at once.
-    // Not sure if this is a good number, needs more testing
-    static constexpr int maxJobGrab = 5;
+    static constexpr int maxJobGrab = 1;
 
     void present(const Frame&);
     void allocBuffers(int amount, const Frame&);
@@ -132,19 +155,28 @@ private:
 
 public:
   template<typename Iterator>
-  RenderGroup(const vcc::VCEngine,
-              const vcc::Setup&,
-              Iterator swapchain,
+  RenderGroup(const vcc::VCEngine&,
+              const vk::ImageView& color,
+              const vk::ImageView& depth,
+              const vk::RenderPass&,
+              vk::SwapchainKHR&,
+              Iterator swapchainImages,
               vk::Extent2D,
               int layers);
   void render(std::initializer_list<RenderJob> job);
   void advance();
 
 private:
-  Queue<RenderJob> jobquery;
+  vk::Device device;  // non-owning
+  vk::Queue graphics; // non-owning
+  int currentImage = 0;
+  vk::SwapchainKHR& swapchain;
+  WorkQueue<RenderJob> jobquery;
+  WorkQueue<vk::SubmitInfo> submitquery;
   std::array<Worker, W> workers;
-  std::vector<PresentImage> images;
-  vk::Device device;
+  std::vector<PresentImage> images; // should get replaced on framebuffer resize
+  std::atomic<uint> workload{};
+  std::condition_variable wakeup{};
 };
 
 }

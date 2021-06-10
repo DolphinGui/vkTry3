@@ -11,7 +11,6 @@
 #include "VCEngine.hpp"
 #include "data/Vertex.hpp"
 #include "vkobjects/ImageBundle.hpp"
-#include "workers/Renderer.hpp"
 
 namespace {
 // TODO: change this to std::byte at some point
