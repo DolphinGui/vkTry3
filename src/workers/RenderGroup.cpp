@@ -15,7 +15,7 @@ RenderGroup<N, W>::RenderGroup(const vcc::VCEngine& engine,
                                const vk::ImageView& color,
                                const vk::ImageView& depth,
                                const vk::RenderPass& renderpass,
-                               vk::SwapchainKHR& swapchain,
+                               const vk::SwapchainKHR& swapchain,
                                It swapChainImageViews,
                                vk::Extent2D size,
                                int layers)

@@ -10,18 +10,19 @@
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
+#include "concurrentqueue/blockingconcurrentqueue.h"
 
 namespace vcc {
+template<int bufferCount = 3>
 class Mover
 {
 
 public:
-  Mover(vk::Queue& transfer,
-        vk::Device& dev,
-        uint32_t transferIndex,
-        uint32_t bufferCount = 1);
+  Mover(const vk::Queue& transfer,
+        const vk::Device& dev,
+        uint32_t transferIndex);
   Mover(const Mover&) = delete;
-  Mover& operator= (const Mover&) = delete;
+  Mover& operator=(const Mover&) = delete;
   ~Mover();
 
   /*
@@ -33,37 +34,28 @@ public:
     const vk::CommandBufferUsageFlags usage;
     vk::Fence signal;
     std::function<void(vk::CommandBuffer)> exec;
-    MoveJob(vk::CommandBuffer& buffer,
-            vk::CommandBufferUsageFlags usage,
+    MoveJob(vk::CommandBufferUsageFlags usage,
             std::function<void(vk::CommandBuffer)> exec,
             vk::Fence signal = nullptr)
-      : commands(&buffer)
-      , usage(usage)
+      : usage(usage)
       , exec(exec)
       , signal(signal)
     {}
-
-  private:
-    vk::CommandBuffer* commands;
   };
 
-  void const wait();
-  void submit(MoveJob job);
+  void submit(MoveJob&& job);
 
 private:
-  vk::Device* device;
-  vk::Queue* transferQueue;
+  const vk::Device& device;
+  const vk::Queue& transferQueue;
   std::thread thread;
   vk::CommandPool pool;
   std::vector<vk::CommandBuffer> buffers;
-  std::queue<MoveJob> recordJobs;
+  moodycamel::BlockingConcurrentQueue<MoveJob> recordJobs;
   std::atomic_bool alive;
   std::mutex living;
-  std::mutex awakeLock;
-  std::condition_variable asleep;
-  const vk::Fence completed;
 
-  void record(const MoveJob& job, vk::CommandBuffer);
+  void record(MoveJob& job, vk::CommandBuffer);
   void doStuff();
 };
 }

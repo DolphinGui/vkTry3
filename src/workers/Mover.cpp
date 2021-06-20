@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <bits/stdint-uintn.h>
+#include <boost/container/static_vector.hpp>
 #include <exception>
 #include <mutex>
 #include <stdexcept>
@@ -12,83 +13,58 @@
 #include "Mover.hpp"
 #include "VCEngine.hpp"
 
-namespace vcc {
 
-Mover::Mover(vk::Queue& t,
-             vk::Device& d,
-             uint32_t transferIndex,
-             uint32_t bufferCount)
-  : device(&d)
-  , transferQueue(&t)
+namespace vcc {
+template<int b>
+Mover<b>::Mover(const vk::Queue& t, const vk::Device& d, uint32_t transferIndex)
+  : device(d)
+  , transferQueue(t)
   , pool(d.createCommandPool(
       vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eTransient,
                                 transferIndex),
       nullptr))
   , buffers(d.allocateCommandBuffers(
-      vk::CommandBufferAllocateInfo(pool,
-                                    vk::CommandBufferLevel::ePrimary,
-                                    bufferCount)))
-  , completed(d.createFence(vk::FenceCreateInfo()))
+      vk::CommandBufferAllocateInfo(pool, vk::CommandBufferLevel::ePrimary, b)))
   , alive(true)
-
 {}
-
-Mover::~Mover()
+template<int b>
+Mover<b>::~Mover()
 {
   alive = false; // deal with device loss later
   living.lock();
-  device->waitForFences(completed, VK_TRUE, UINT64_MAX);
-  device->destroyFence(completed);
-  device->destroyCommandPool(pool);
+  transferQueue.waitIdle();
+  device.destroyCommandPool(pool);
 }
-
+template<int b>
 void
-Mover::submit(MoveJob job)
+Mover<b>::submit(MoveJob&& job)
 {
-  recordJobs.push(job);
-  std::unique_lock<std::mutex> lock(awakeLock);
-  asleep.notify_one();
+  recordJobs.enqueue(job);
 }
-
+template<int b>
 void
-Mover::record(const MoveJob& job, vk::CommandBuffer buffer)
+Mover<b>::record(MoveJob& job, vk::CommandBuffer buffer)
 {
   buffer.begin(vk::CommandBufferBeginInfo(job.usage));
   job.exec(buffer);
   buffer.end();
 }
-
-void const
-Mover::wait()
-{
-  if (!recordJobs.empty()) // TODO: deal with device loss later
-    device->waitForFences(completed, VK_TRUE, 100000);
-}
-
+template<int b>
 void
-Mover::doStuff()
+Mover<b>::doStuff()
 {
   std::lock_guard lock(living);
+  boost::container::static_vector<MoveJob, b> jobs;
   while (alive) {
-    if (!recordJobs.empty()) {
-      auto command = buffers.begin();
-      while (!recordJobs.empty() && command != buffers.end()) {
-        record(recordJobs.front(), *command++);
-        recordJobs.pop();
-      }
-      if (device->getFenceStatus(completed) == vk::Result::eSuccess) {
-        device->waitForFences(
-          completed, VK_FALSE, 100000000); // TODO: deal with device loss later
-        device->resetCommandPool(pool);
-        device->resetFences(completed);
-      }
-      transferQueue->submit(
-        vk::SubmitInfo(0, {}, {}, buffers.size(), buffers.data(), {}, {}),
-        completed);
-    } else {
-      std::unique_lock<std::mutex> lock(awakeLock);
-      asleep.wait(lock, [&]() { return !recordJobs.empty(); });
+    recordJobs.wait_dequeue_bulk(jobs.begin(), b);
+    auto buffer = buffers.begin();
+    while (!jobs.empty()) {
+      record(jobs.back(), buffer++);
+      jobs.pop_back();
     }
+    transferQueue.waitIdle();
+    transferQueue.submit(
+      vk::SubmitInfo(0, {}, {}, buffers.size(), buffers.data(), {}, {}));
   }
 }
 

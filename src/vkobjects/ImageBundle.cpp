@@ -10,13 +10,13 @@ using namespace vcc;
 ImageBundle
 ImageBundle::create(const vk::ImageCreateInfo& imageInfo,
                     const VmaAllocationCreateInfo& allocInfo,
-                    VCEngine* env,
+                    const VCEngine& env,
                     vk::ImageAspectFlags viewAspectFlags)
 {
   VkImage image;
   VmaAllocation alloc;
   vk::ImageView view{};
-  vmaCreateImage(env->vmaAlloc,
+  vmaCreateImage(env.vmaAlloc,
                  reinterpret_cast<const VkImageCreateInfo*>(&imageInfo),
                  &allocInfo,
                  &image,
@@ -30,9 +30,9 @@ ImageBundle::create(const vk::ImageCreateInfo& imageInfo,
       imageInfo.format,
       {},
       vk::ImageSubresourceRange(viewAspectFlags, 0, imageInfo.mipLevels, 0, 1));
-    view = env->device.createImageView(viewInfo);
+    view = env.device.createImageView(viewInfo);
   }
-  return ImageBundle(image, alloc, view, env->device, env->vmaAlloc);
+  return ImageBundle(image, alloc, view, env.device, env.vmaAlloc);
 }
 
 ImageBundle::ImageBundle(vk::Image image,

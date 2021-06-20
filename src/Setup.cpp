@@ -473,27 +473,27 @@ createRenderPass(vk::Device device,
 }
 
 namespace vcc {
-Setup::Setup(VCEngine* engine)
+Setup::Setup(VCEngine& engine)
   : env(engine)
   , capabilities(
-      env->physicalDevice.getSurfaceCapabilitiesKHR(env->surface, env->dload))
-  , swapChainExtent(getSurfaceExtent(*env, capabilities))
-  , swapChainImageFormat(getSwapFormat(*env))
+      env.physicalDevice.getSurfaceCapabilitiesKHR(env.surface, env.dload))
+  , swapChainExtent(getSurfaceExtent(env, capabilities))
+  , swapChainImageFormat(getSwapFormat(env))
   , swapChain( // Test if this actually is unititialized
-      createSwap(*env, capabilities, swapChainImageFormat, swapChainExtent))
-  , swapChainImages(env->device.getSwapchainImagesKHR(swapChain, env->dload))
-  , swapChainImageViews(createImageView(env->device,
+      createSwap(env, capabilities, swapChainImageFormat, swapChainExtent))
+  , swapChainImages(env.device.getSwapchainImagesKHR(swapChain, env.dload))
+  , swapChainImageViews(createImageView(env.device,
                                         swapChainImages,
                                         swapChainImageFormat.format,
                                         vk::ImageAspectFlagBits::eColor,
                                         1))
-  , renderPass(createRenderPass(env->device,
-                                env->physicalDevice,
+  , renderPass(createRenderPass(env.device,
+                                env.physicalDevice,
                                 swapChainImageFormat.format,
-                                env->msaaSamples))
-  , descriptorSetLayout(createDescriptorSetLayout(env->device))
-  , pipeline(createGraphicsPipeline(env->device,
-                                    env->msaaSamples,
+                                env.msaaSamples))
+  , descriptorSetLayout(createDescriptorSetLayout(env.device))
+  , pipeline(createGraphicsPipeline(env.device,
+                                    env.msaaSamples,
                                     swapChainExtent,
                                     &descriptorSetLayout,
                                     renderPass))
@@ -503,11 +503,11 @@ Setup::Setup(VCEngine* engine)
     return create;
   }())
   , graphicsQueue(
-      engine->device.getQueue(0, env->queueIndices.graphicsFamily.value()))
+      engine.device.getQueue(0, env.queueIndices.graphicsFamily.value()))
   , presentQueue(
-      engine->device.getQueue(0, env->queueIndices.presentFamily.value()))
+      engine.device.getQueue(0, env.queueIndices.presentFamily.value()))
   , transferQueue(
-      engine->device.getQueue(0, env->queueIndices.transferFamily.value()))
+      engine.device.getQueue(0, env.queueIndices.transferFamily.value()))
   , color(ImageBundle::create(
       vk::ImageCreateInfo({},
                           vk::ImageType::e2D,
@@ -515,7 +515,7 @@ Setup::Setup(VCEngine* engine)
                           { swapChainExtent.width, swapChainExtent.height, 1 },
                           1,
                           {},
-                          env->msaaSamples,
+                          env.msaaSamples,
                           vk::ImageTiling::eOptimal,
                           vk::ImageUsageFlagBits::eTransientAttachment |
                             vk::ImageUsageFlagBits::eColorAttachment,
@@ -527,7 +527,7 @@ Setup::Setup(VCEngine* engine)
       vk::ImageCreateInfo(
         {},
         vk::ImageType::e2D,
-        findSupportedFormat(env->physicalDevice,
+        findSupportedFormat(env.physicalDevice,
                             { vk::Format::eD32Sfloat,
                               vk::Format::eD32SfloatS8Uint,
                               vk::Format::eD24UnormS8Uint },
@@ -536,14 +536,14 @@ Setup::Setup(VCEngine* engine)
         { swapChainExtent.width, swapChainExtent.height, 1 },
         1,
         {},
-        env->msaaSamples,
+        env.msaaSamples,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eDepthStencilAttachment,
         vk::SharingMode::eExclusive),
       allocationInfo,
       env,
       vk::ImageAspectFlagBits::eDepth))
-  , swapChainFramebuffers(createFramebuffers(env->device,
+  , swapChainFramebuffers(createFramebuffers(env.device,
                                              swapChainExtent,
                                              color,
                                              depth,
@@ -553,16 +553,16 @@ Setup::Setup(VCEngine* engine)
 Setup::~Setup()
 {
   for (auto fbuffer : swapChainFramebuffers) {
-    env->device.destroyFramebuffer(fbuffer);
+    env.device.destroyFramebuffer(fbuffer);
   }
-  env->device.destroyPipeline(pipeline.second);
-  env->device.destroyPipelineLayout(pipeline.first);
-  env->device.destroyRenderPass(renderPass);
+  env.device.destroyPipeline(pipeline.second);
+  env.device.destroyPipelineLayout(pipeline.first);
+  env.device.destroyRenderPass(renderPass);
   for (auto view : swapChainImageViews) {
-    env->device.destroyImageView(view);
+    env.device.destroyImageView(view);
   }
-  env->device.destroySwapchainKHR(swapChain);
-  env->device.destroyDescriptorSetLayout(descriptorSetLayout);
+  env.device.destroySwapchainKHR(swapChain);
+  env.device.destroyDescriptorSetLayout(descriptorSetLayout);
 }
 
 }

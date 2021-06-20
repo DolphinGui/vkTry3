@@ -97,7 +97,12 @@ private:
     Worker(const Worker&) = delete;
     Worker& operator=(const Worker&) = delete;
     Worker() = delete;
-
+    ~Worker()
+    {
+      alive = false;
+      std::lock_guard lock(living);
+      graphics.waitIdle();
+    }
   protected:
     template<typename It>
     Worker(vk::Device device,
@@ -126,12 +131,7 @@ private:
                       workerIndex);
       }
     }
-    ~Worker()
-    {
-      alive = false;
-      std::lock_guard lock(living);
-      graphics.waitIdle();
-    }
+    
 
   private:
     std::array<Frame, F> frames;
@@ -159,7 +159,7 @@ public:
               const vk::ImageView& color,
               const vk::ImageView& depth,
               const vk::RenderPass&,
-              vk::SwapchainKHR&,
+              const vk::SwapchainKHR&,
               Iterator swapchainImages,
               vk::Extent2D,
               int layers);
@@ -170,7 +170,7 @@ private:
   vk::Device device;  // non-owning
   vk::Queue graphics; // non-owning
   int currentImage = 0;
-  vk::SwapchainKHR& swapchain;
+  const vk::SwapchainKHR& swapchain;
   WorkQueue<RenderJob> jobquery;
   WorkQueue<vk::SubmitInfo> submitquery;
   std::array<Worker, W> workers;

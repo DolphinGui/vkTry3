@@ -16,25 +16,25 @@ namespace vcc {
 class Setup
 {
 public:
-  VCEngine* env;
+  VCEngine& env;
 
-  Setup(VCEngine* engine);
+  Setup(VCEngine& engine);
   ~Setup();
 
 private:
   const vk::SurfaceFormatKHR swapChainImageFormat;
-  const vk::Extent2D swapChainExtent;
+  
+  const vk::SurfaceCapabilitiesKHR capabilities;
 
 public:
+  const vk::Extent2D swapChainExtent;
   const vk::RenderPass renderPass;
   const ImageBundle color;
   const ImageBundle depth;
-
-private:
-  const vk::SurfaceCapabilitiesKHR capabilities;
   const vk::SwapchainKHR swapChain;
   const std::vector<vk::Image> swapChainImages;
 
+private:
   const std::vector<vk::ImageView> swapChainImageViews;
   const std::vector<vk::Framebuffer> swapChainFramebuffers;
 

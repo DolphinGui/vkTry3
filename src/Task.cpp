@@ -1,10 +1,11 @@
+#include "Task.hpp"
+
 #include <functional>
 #include <memory>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_core.h>
 
 #include "Setup.hpp"
-#include "Task.hpp"
 #include "VulkanMemoryAllocator/src/VmaUsage.h"
 #include "jobs/RecordJob.hpp"
 #include "vkobjects/BufferBundle.hpp"
@@ -77,13 +78,20 @@ transitionImageLayout(vk::Image image,
 }
 }
 
-Task::Task(Setup* s, VCEngine* e)
+Task::Task(Setup& s, VCEngine& e)
   : setup(s)
   , engine(e)
-  , render(e->graphicsQueue, e->device, e->queueIndices.graphicsFamily.value())
-  , mover(e->graphicsQueue, // change this later
-          e->device,
-          e->queueIndices.graphicsFamily.value())
+  , render(e,
+           s.color.view,
+           s.depth.view,
+           s.renderPass,
+           s.swapChain,
+           s.swapChainImages.begin(),
+           s.swapChainExtent,
+           1)
+  , mover(e.graphicsQueue, // change this later
+          e.device,
+          e.queueIndices.graphicsFamily.value())
 {}
 
 Task::~Task() {}
@@ -110,7 +118,7 @@ Task::run(const stbi_uc* const textureData,
                                 vk::Extent3D(imageSize.width, imageSize.height),
                                 mipLevels,
                                 1,
-                                engine->msaaSamples,
+                                engine.msaaSamples,
                                 vk::ImageTiling::eOptimal,
                                 vk::ImageUsageFlagBits::eTransferDst |
                                   vk::ImageUsageFlagBits::eTransferSrc |
@@ -134,12 +142,12 @@ Task::run(const stbi_uc* const textureData,
   VmaAllocationCreateInfo meshCreate{};
   meshCreate.usage = VMA_MEMORY_USAGE_GPU_ONLY;
   textureCreate.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-  BufferBundle vertex(meshInfo, meshCreate, engine->vmaAlloc);
-  loadBuffer(&verticies, meshInfo.size, vertex.buffer);
+  BufferBundle vertex(meshInfo, meshCreate, engine.vmaAlloc);
+  loadBuffer(&verticies, meshInfo.size, engine.device, vertex.buffer);
   meshInfo.size = sizeof(indicies[0]) * indicies.size();
   meshInfo.usage = vk::BufferUsageFlagBits::eTransferDst |
                    vk::BufferUsageFlagBits::eIndexBuffer;
-  BufferBundle index(meshInfo, meshCreate, engine->vmaAlloc);
+  BufferBundle index(meshInfo, meshCreate, engine.vmaAlloc);
 }
 vk::Fence
 Task::loadBuffer(const void* const data,
@@ -148,12 +156,14 @@ Task::loadBuffer(const void* const data,
                  vk::Buffer& out)
 {
   std::pair<vk::Buffer, VmaAllocation> stage(
-    stageAndLoad(engine->vmaAlloc, data, size));
-  mover.submit({ vcc::RecordJob(
+    stageAndLoad(engine.vmaAlloc, data, size));
+  mover.submit(Mover<2>::MoveJob(
+    vk::CommandBufferUsageFlagBits::eOneTimeSubmit,
     [out, size, stage](vk::CommandBuffer cmd) {
       cmd.copyBuffer(stage.first, out, vk::BufferCopy(0, 0, size));
-    }, ) });
-  vmaDestroyBuffer(engine->vmaAlloc, stage.first, stage.second);
+    }));
+  vmaDestroyBuffer(engine.vmaAlloc, stage.first, stage.second);
+  return fence.createFence(vk::FenceCreateInfo());
 }
 
 // Formats the image using a memory barrier.
@@ -167,7 +177,8 @@ Task::loadImage(const void* const data,
                 vk::Image& out)
 {
   std::pair<vk::Buffer, VmaAllocation> stage(
-    stageAndLoad(engine->vmaAlloc, data, size));
-  
-  vmaDestroyBuffer(engine->vmaAlloc, stage.first, stage.second);
+    stageAndLoad(engine.vmaAlloc, data, size));
+
+  vmaDestroyBuffer(engine.vmaAlloc, stage.first, stage.second);
+  return fence.createFence(vk::FenceCreateInfo());
 }

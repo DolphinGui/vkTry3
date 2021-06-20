@@ -12,7 +12,8 @@
 #include "data/Vertex.hpp"
 #include "vkobjects/BufferBundle.hpp"
 #include "vkobjects/ImageBundle.hpp"
-#include "workers/Renderer.hpp"
+#include "workers/RenderGroup.hpp"
+#include "workers/Mover.hpp"
 
 namespace vcc {
 class Setup;
@@ -20,7 +21,7 @@ class Setup;
 class Task
 {
 public:
-  Task(Setup* s, VCEngine* e);
+  Task(Setup& s, VCEngine& e);
   ~Task();
   void run(const stbi_uc* const image,
            vk::Extent2D imageSize,
@@ -29,11 +30,11 @@ public:
            const std::vector<uint32_t>& indicies);
 
 private:
-  VCEngine* engine;
-  Setup* setup;
+  VCEngine& engine;
+  Setup& setup;
 
-  Renderer<3> render;
-  Renderer<3> mover;
+  RenderGroup<3, 1> render;
+  Mover<2> mover;
 
   std::atomic_flag resized;
 

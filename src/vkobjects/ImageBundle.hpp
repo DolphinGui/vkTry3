@@ -19,7 +19,7 @@ public:
 
   static ImageBundle create(const vk::ImageCreateInfo&,
                             const VmaAllocationCreateInfo&,
-                            VCEngine* env,
+                            const VCEngine& env,
                             vk::ImageAspectFlags viewAspectFlags = {});
   static uint32_t findMemoryType(uint32_t typeFilter,
                                  vk::MemoryPropertyFlags properties,
