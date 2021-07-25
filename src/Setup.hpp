@@ -1,5 +1,4 @@
-#ifndef SETUP_H_INCLUDE
-#define SETUP_H_INCLUDE
+#pragma once
 #include <bits/stdint-uintn.h>
 #include <fstream>
 #include <mutex>
@@ -16,38 +15,31 @@ namespace vcc {
 class Setup
 {
 public:
-  VCEngine& env;
+  const VCEngine& env;
 
   Setup(VCEngine& engine);
   ~Setup();
 
-private:
-  const vk::SurfaceFormatKHR swapChainImageFormat;
-  
   const vk::SurfaceCapabilitiesKHR capabilities;
-
-public:
   const vk::Extent2D swapChainExtent;
-  const vk::RenderPass renderPass;
-  const ImageBundle color;
-  const ImageBundle depth;
+  const vk::SurfaceFormatKHR swapChainImageFormat;
   const vk::SwapchainKHR swapChain;
   const std::vector<vk::Image> swapChainImages;
+  std::vector<vk::ImageView> swapChainImageViews;
 
-private:
-  const std::vector<vk::ImageView> swapChainImageViews;
-  const std::vector<vk::Framebuffer> swapChainFramebuffers;
-
+  const vk::RenderPass renderPass;
   const vk::DescriptorSetLayout descriptorSetLayout;
   const std::pair<vk::PipelineLayout, vk::Pipeline>
     pipeline; // figure out dynamic pipeline recreation
-
+  VmaAllocationCreateInfo allocationInfo;
   const vk::Queue graphicsQueue;
   const std::mutex graphicsLock;
   const vk::Queue presentQueue;
   const vk::Queue transferQueue;
+  const ImageBundle color;
+  const ImageBundle depth;
+  const std::vector<vk::Framebuffer> swapChainFramebuffers;
 
-  VmaAllocationCreateInfo allocationInfo;
 };
 }
-#endif
+

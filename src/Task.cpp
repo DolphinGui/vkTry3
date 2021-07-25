@@ -6,7 +6,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "Setup.hpp"
-#include "VulkanMemoryAllocator/src/VmaUsage.h"
+#include "vk_mem_alloc.h"
 #include "jobs/RecordJob.hpp"
 #include "vkobjects/BufferBundle.hpp"
 #include "vkobjects/ImageBundle.hpp"
@@ -86,7 +86,7 @@ Task::Task(Setup& s, VCEngine& e)
            s.depth.view,
            s.renderPass,
            s.swapChain,
-           s.swapChainImages.begin(),
+           s.swapChainImageViews,
            s.swapChainExtent,
            1)
   , mover(e.graphicsQueue, // change this later
@@ -115,7 +115,7 @@ Task::run(const stbi_uc* const textureData,
   vk::ImageCreateInfo imageInfo({},
                                 vk::ImageType::e2D,
                                 vk::Format::eR8G8B8A8Srgb,
-                                vk::Extent3D(imageSize.width, imageSize.height),
+                                {imageSize.width, imageSize.height, 1},
                                 mipLevels,
                                 1,
                                 engine.msaaSamples,
@@ -157,11 +157,11 @@ Task::loadBuffer(const void* const data,
 {
   std::pair<vk::Buffer, VmaAllocation> stage(
     stageAndLoad(engine.vmaAlloc, data, size));
-  mover.submit(Mover<2>::MoveJob(
+  mover.submit(Mover::MoveJob{
     vk::CommandBufferUsageFlagBits::eOneTimeSubmit,
     [out, size, stage](vk::CommandBuffer cmd) {
       cmd.copyBuffer(stage.first, out, vk::BufferCopy(0, 0, size));
-    }));
+    } });
   vmaDestroyBuffer(engine.vmaAlloc, stage.first, stage.second);
   return fence.createFence(vk::FenceCreateInfo());
 }

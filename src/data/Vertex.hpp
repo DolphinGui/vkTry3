@@ -1,5 +1,4 @@
-#ifndef VERTEX_H_INCLUDE
-#define VERTEX_H_INCLUDE
+#pragma once
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -71,4 +70,3 @@ struct hash<Vertex>
   }
 };
 }
-#endif

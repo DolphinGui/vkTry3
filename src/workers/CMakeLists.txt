@@ -5,4 +5,5 @@ add_library(vaccumCleaner
     workers/RenderGroup.cpp 
     workers/Mover.cpp 
     vkobjects/ImageBundle.cpp
-    vkobjects/BufferBundle.cpp)
+    vkobjects/BufferBundle.cpp
+    vkobjects/ImageBundle.cpp)

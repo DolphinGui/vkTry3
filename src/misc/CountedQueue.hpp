@@ -1,7 +1,6 @@
-#ifndef COUNTED_QUEUE_HPP_INCLUDE
-#define COUNTED_QUEUE_HPP_INCLUDE
+#pragma once
 
-#include "concurrentqueue/blockingconcurrentqueue.h"
+#include "blockingconcurrentqueue.h"
 #include <atomic>
 
 template<typename T, typename Traits>
@@ -55,5 +54,3 @@ public:
   }
   inline uint waiting() const noexcept { return count; }
 };
-
-#endif

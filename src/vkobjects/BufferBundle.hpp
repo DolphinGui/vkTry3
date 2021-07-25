@@ -1,7 +1,6 @@
-#ifndef BUFFERMEMORY_H_INCLUDE
-#define BUFFERMEMORY_H_INCLUDE
+#pragma once
 
-#include "VulkanMemoryAllocator/src/VmaUsage.h"
+#include "vk_mem_alloc.h"
 #include <vulkan/vulkan.hpp>
 
 namespace vcc {
@@ -21,4 +20,3 @@ private:
 };
 
 }
-#endif

@@ -2,6 +2,8 @@
 #include <iterator>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_enums.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 #include "ImageBundle.hpp"
 #include "VCEngine.hpp"
@@ -13,26 +15,27 @@ ImageBundle::create(const vk::ImageCreateInfo& imageInfo,
                     const VCEngine& env,
                     vk::ImageAspectFlags viewAspectFlags)
 {
-  VkImage image;
+  vk::Image image;
   VmaAllocation alloc;
-  vk::ImageView view{};
   vmaCreateImage(env.vmaAlloc,
                  reinterpret_cast<const VkImageCreateInfo*>(&imageInfo),
-                 &allocInfo,
-                 &image,
+                 reinterpret_cast<const VmaAllocationCreateInfo*>(&allocInfo),
+                 reinterpret_cast<VkImage*>(&image),
                  &alloc,
                  nullptr);
+    vk::ImageView view{};
+
   if (viewAspectFlags) {
-    const vk::ImageViewCreateInfo viewInfo(
+    view = env.device.createImageView(vk::ImageViewCreateInfo(
       {},
       image,
       vk::ImageViewType::e2D,
       imageInfo.format,
       {},
-      vk::ImageSubresourceRange(viewAspectFlags, 0, imageInfo.mipLevels, 0, 1));
-    view = env.device.createImageView(viewInfo);
+      vk::ImageSubresourceRange(
+        viewAspectFlags, 0, imageInfo.mipLevels, 0, 1)));
   }
-  return ImageBundle(image, alloc, view, env.device, env.vmaAlloc);
+  return {image, alloc, view, env.device, env.vmaAlloc};
 }
 
 ImageBundle::ImageBundle(vk::Image image,

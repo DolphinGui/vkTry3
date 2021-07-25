@@ -1,14 +1,14 @@
-#ifndef IMAGE_H_INCLUDE
-#define IMAGE_H_INCLUDE
+#pragma once
 
 #include <GLFW/glfw3.h>
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
-#include "VulkanMemoryAllocator/src/VmaUsage.h"
+#include "vk_mem_alloc.h"
 
 namespace vcc {
+/*Change to use VMA later. Maybe figure out a smarter allocation system.*/
 class ImageBundle
 {
 public:
@@ -35,4 +35,4 @@ private:
   const VmaAllocator& alloc;
 };
 }
-#endif
+

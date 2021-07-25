@@ -1,5 +1,4 @@
-#ifndef RENDERGROUP_H_INCLUDE
-#define RENDERGROUP_H_INCLUDE
+#pragma once
 
 #include <array>
 #include <bits/stdint-uintn.h>
@@ -14,18 +13,22 @@
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
-#include "concurrentqueue/concurrentqueue.h"
+#include "blockingconcurrentqueue.h"
+#include "gsl/gsl"
 
 #include "VCEngine.hpp"
+#include "gsl/span"
 
 namespace vcc {
 // This will use queue, do not try to use it along with this
-template<int F, int W>
 class RenderGroup
 {
 private:
+  constexpr static int W = 2;
+  constexpr static int F = 3;
+
   template<typename T>
-  using WorkQueue = moodycamel::ConcurrentQueue<T>;
+  using WorkQueue = moodycamel::BlockingConcurrentQueue<T>;
   struct PresentImage
   {
     vk::Semaphore available;
@@ -36,7 +39,7 @@ private:
   struct RenderJob
   {
     using Command = void (*)(vk::CommandBuffer, vk::Framebuffer);
-    const vk::CommandBufferBeginInfo usage;
+    vk::CommandBufferBeginInfo usage;
     vk::Framebuffer target;
     RenderJob(Command buffer,
               vk::CommandBufferBeginInfo usage = vk::CommandBufferBeginInfo(
@@ -44,6 +47,7 @@ private:
       : commands(buffer)
       , usage(usage)
     {}
+    // don't execute a default constructed job
     void record(vk::CommandBuffer buffer)
     {
       buffer.begin(usage);
@@ -52,7 +56,7 @@ private:
     }
 
   private:
-    const Command commands;
+    Command commands;
   };
 
   class Worker
@@ -61,6 +65,8 @@ private:
     struct Frame
     {
       // The amount of buffers allocated. Should probably be tested.
+      // Yes I know holding device pointer is probably inefficient
+      // no, it probably won't be a lot of memory
       static constexpr int bufferCount = 1;
       const vk::Device device; // non-owning
       const vk::CommandPool pool;
@@ -103,7 +109,7 @@ private:
       std::lock_guard lock(living);
       graphics.waitIdle();
     }
-  protected:
+
     template<typename It>
     Worker(vk::Device device,
            vk::Queue graphics,
@@ -122,16 +128,27 @@ private:
       , living()
       , alarmclock(alarmclock)
       , workload(workload)
-    {
-      for (Frame& frame : frames) {
-        frame = Frame(device,
+      , frames{ Frame(device,
                       vk::CommandPoolCreateInfo(
-                        vk::CommandPoolCreateFlagBits::eTransient, queueIndex),
+                        vk::CommandPoolCreateFlagBits::eTransient,
+                        queueIndex),
                       *PresentImages++,
-                      workerIndex);
-      }
+                      workerIndex),
+                Frame(device,
+                      vk::CommandPoolCreateInfo(
+                        vk::CommandPoolCreateFlagBits::eTransient,
+                        queueIndex),
+                      *PresentImages++,
+                      workerIndex),
+                Frame(device,
+                      vk::CommandPoolCreateInfo(
+                        vk::CommandPoolCreateFlagBits::eTransient,
+                        queueIndex),
+                      *PresentImages++,
+                      workerIndex) }
+    {
+      // std::fill
     }
-    
 
   private:
     std::array<Frame, F> frames;
@@ -141,8 +158,8 @@ private:
     std::atomic_bool alive;
     std::mutex living;
     int frameNumber{};
-    const WorkQueue<RenderJob>& jobquery;
-    const WorkQueue<RenderJob>& submitquery;
+    WorkQueue<RenderJob>& jobquery;
+    WorkQueue<vk::SubmitInfo>& submitquery;
     std::condition_variable& alarmclock;
     std::atomic<uint>& workload;
     // The maximum amount of jobs this can grab at once.
@@ -154,15 +171,17 @@ private:
   };
 
 public:
-  template<typename Iterator>
-  RenderGroup(const vcc::VCEngine&,
+  /* It must be the iterator ImageView of the swapchain vector.
+    There must be at least N ImageViews in it */
+  RenderGroup(const vcc::VCEngine& engine,
               const vk::ImageView& color,
               const vk::ImageView& depth,
-              const vk::RenderPass&,
-              const vk::SwapchainKHR&,
-              Iterator swapchainImages,
-              vk::Extent2D,
+              const vk::RenderPass& renderpass,
+              const vk::SwapchainKHR& swapchain,
+              gsl::span<vk::ImageView> swapChainImageViews,
+              vk::Extent2D size,
               int layers);
+  ~RenderGroup();
   void render(std::initializer_list<RenderJob> job);
   void advance();
 
@@ -173,11 +192,11 @@ private:
   const vk::SwapchainKHR& swapchain;
   WorkQueue<RenderJob> jobquery;
   WorkQueue<vk::SubmitInfo> submitquery;
-  std::array<Worker, W> workers;
   std::vector<PresentImage> images; // should get replaced on framebuffer resize
+  std::array<Worker, W> workers;
   std::atomic<uint> workload{};
   std::condition_variable wakeup{};
 };
 
 }
-#endif
+

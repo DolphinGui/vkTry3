@@ -1,12 +1,11 @@
-#ifndef VCENNGINE_H_INCLUDE
-#define VCENNGINE_H_INCLUDE
+#pragma once
 #include <GLFW/glfw3.h>
 #include <array>
 #include <string>
 #include <string_view>
 #include <vulkan/vulkan.hpp>
 
-#include "VulkanMemoryAllocator/src/VmaUsage.h"
+#include "vk_mem_alloc.h"
 
 #include <cstdint>
 #include <iostream>
@@ -53,35 +52,38 @@ class Setup;
 class VCEngine
 {
 public:
-  VCEngine(int width, int height, const char* name, GLFWwindow*);
+  VCEngine(int width, int height, const std::string_view name, GLFWwindow*);
   ~VCEngine();
   friend class Setup;
 
   const uint32_t WIDTH;
   const uint32_t HEIGHT;
-  const char* APPNAME;
+  const std::string_view APPNAME;
+  constexpr static uint32_t vkVersion = VK_API_VERSION_1_2;
 
-  const uint32_t vkVersion = VK_API_VERSION_1_2;
-  const vk::Instance instance;
   GLFWwindow* window;
+  const vk::Instance instance;
+
   const vk::SurfaceKHR surface;
   const vk::PhysicalDevice physicalDevice;
-  const vk::Device device;
   const vk::PhysicalDeviceMemoryProperties physProps;
+  const vk::DispatchLoaderDynamic dload;
   const QueueFamilyIndices queueIndices;
+  const vk::Device device;
+  const vk::DebugUtilsMessengerEXT debugMessenger;
+  const VmaAllocator vmaAlloc;
   const vk::Queue graphicsQueue;
   const vk::Queue presentQueue;
 
   bool isFramebufferResized() { return framebufferResized; }
 
-  const vk::DebugUtilsMessengerEXT debugMessenger;
+  
 
   const vk::SampleCountFlagBits msaaSamples = vk::SampleCountFlagBits::e2;
-  const vk::DispatchLoaderDynamic dload;
 
-  const VmaAllocator vmaAlloc;
+  
 
-  vk::Extent2D  framebufferSize() const
+  vk::Extent2D framebufferSize() const
   {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
@@ -92,8 +94,6 @@ public:
 
   void memProps(vk::PhysicalDeviceMemoryProperties* out);
 
-  
-
 private:
   static constexpr std::array<const char*, 1> validationLayers{
     "VK_LAYER_KHRONOS_validation"
@@ -103,14 +103,6 @@ private:
     "VK_KHR_swapchain"
   };
   bool framebufferResized = false;
-  bool checkValidationLayerSupport();
-  vk::Instance initInstance();
-  vk::PhysicalDevice pickPhysicalDevice();
-  int deviceSuitability(vk::PhysicalDevice device);
-  vk::Device createLogicalDevice();
-  GLFWwindow* initGLFW(GLFWwindow* w);
-
-  QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device) const;
 
   static void framebufferResizeCallback(GLFWwindow* window,
                                         int width,
@@ -119,22 +111,5 @@ private:
     auto app = reinterpret_cast<VCEngine*>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
   }
-
-  static std::vector<const char*> getRequiredExtensions()
-  {
-    uint32_t glfwExtensionCount = 0;
-    const char** glfwExtensions;
-    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    std::vector<const char*> extensions(glfwExtensions,
-                                        glfwExtensions + glfwExtensionCount);
-
-    if (enableValidationLayers) {
-      extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
-
-    return extensions;
-  }
 };
 }
-#endif

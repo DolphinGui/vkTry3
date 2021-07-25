@@ -13,21 +13,19 @@
 #include "vkobjects/ImageBundle.hpp"
 
 namespace {
-// TODO: change this to std::byte at some point
-std::vector<char>
+std::vector<std::byte>
 readFile(const std::string_view& filename)
 {
   std::ifstream file(filename.data(), std::ios::ate | std::ios::binary);
-
   if (!file.is_open()) {
     throw std::runtime_error("failed to open file!");
   }
 
   size_t fileSize = (size_t)file.tellg();
-  std::vector<char> buffer(fileSize);
+  std::vector<std::byte> buffer(fileSize);
 
   file.seekg(0);
-  file.read(buffer.data(), fileSize);
+  file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
 
   file.close();
 
@@ -66,7 +64,7 @@ createDescriptorSetLayout(const vk::Device device)
 }
 
 vk::ShaderModule
-createShaderModule(const vk::Device device, const std::vector<char>& code)
+createShaderModule(const vk::Device device, const std::vector<std::byte>& code)
 {
   vk::ShaderModuleCreateInfo createInfo{};
   createInfo.sType = vk::StructureType::eShaderModuleCreateInfo;
@@ -119,8 +117,8 @@ createGraphicsPipeline(vk::Device device,
                        const vk::DescriptorSetLayout* descriptorSetLayout,
                        const vk::RenderPass& renderpass)
 {
-  auto vertShaderCode = readFile("../shaders/vert.spv");
-  auto fragShaderCode = readFile("../shaders/frag.spv");
+  auto vertShaderCode = readFile("./shaders/vert.spv");
+  auto fragShaderCode = readFile("./shaders/frag.spv");
 
   vk::ShaderModule vertShaderModule =
     createShaderModule(device, vertShaderCode);
@@ -497,7 +495,7 @@ Setup::Setup(VCEngine& engine)
                                     swapChainExtent,
                                     &descriptorSetLayout,
                                     renderPass))
-  , allocationInfo([]{
+  , allocationInfo([] {
     VmaAllocationCreateInfo create{};
     create.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     return create;
@@ -509,12 +507,12 @@ Setup::Setup(VCEngine& engine)
   , transferQueue(
       engine.device.getQueue(0, env.queueIndices.transferFamily.value()))
   , color(ImageBundle::create(
-      vk::ImageCreateInfo({},
+      vk::ImageCreateInfo({}, // createFlags
                           vk::ImageType::e2D,
                           swapChainImageFormat.format,
                           { swapChainExtent.width, swapChainExtent.height, 1 },
-                          1,
-                          {},
+                          1, // miplayers
+                          1, // arraylayers
                           env.msaaSamples,
                           vk::ImageTiling::eOptimal,
                           vk::ImageUsageFlagBits::eTransientAttachment |
@@ -525,7 +523,7 @@ Setup::Setup(VCEngine& engine)
       vk::ImageAspectFlagBits::eColor))
   , depth(ImageBundle::create(
       vk::ImageCreateInfo(
-        {},
+        {}, // createFlags
         vk::ImageType::e2D,
         findSupportedFormat(env.physicalDevice,
                             { vk::Format::eD32Sfloat,
@@ -534,8 +532,8 @@ Setup::Setup(VCEngine& engine)
                             vk::ImageTiling::eOptimal,
                             vk::FormatFeatureFlagBits::eDepthStencilAttachment),
         { swapChainExtent.width, swapChainExtent.height, 1 },
-        1,
-        {},
+        1, // miplayers
+        1, // arraylayers
         env.msaaSamples,
         vk::ImageTiling::eOptimal,
         vk::ImageUsageFlagBits::eDepthStencilAttachment,

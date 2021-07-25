@@ -1,5 +1,4 @@
-#ifndef UBO_H_INCLUDE
-#define UBO_H_INCLUDE
+#pragma once
 
 #include <bits/stdint-uintn.h>
 #define GLM_FORCE_RADIANS
@@ -13,4 +12,3 @@ struct UniformBufferObject
   alignas(16) glm::mat4 view;
   alignas(16) glm::mat4 proj;
 };
-#endif

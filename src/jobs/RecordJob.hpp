@@ -1,5 +1,4 @@
-#ifndef RECORDJOB_H_INCLUDE
-#define RECORDJOB_H_INCLUDE
+#pragma once
 #include <functional>
 #include <memory>
 #include <optional>
@@ -57,4 +56,3 @@ private:
   vk::CommandBuffer command;
 };
 }
-#endif

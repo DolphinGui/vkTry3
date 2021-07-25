@@ -1,5 +1,4 @@
-#ifndef TASK_H_INCLUDE
-#define TASK_H_INCLUDE
+#pragma once
 #include <atomic>
 #include <bits/stdint-uintn.h>
 #include <cstddef>
@@ -33,8 +32,8 @@ private:
   VCEngine& engine;
   Setup& setup;
 
-  RenderGroup<3, 1> render;
-  Mover<2> mover;
+  RenderGroup render;
+  Mover mover;
 
   std::atomic_flag resized;
 
@@ -51,4 +50,3 @@ private:
                       vk::Image& out);
 };
 }
-#endif
