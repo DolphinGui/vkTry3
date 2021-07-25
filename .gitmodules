@@ -4,3 +4,9 @@
 [submodule "external/concurrentqueue"]
 	path = external/concurrentqueue
 	url = https://github.com/cameron314/concurrentqueue.git
+[submodule "GSL"]
+	path = GSL
+	url = https://github.com/microsoft/GSL.git
+[submodule "external/GSL"]
+	path = external/GSL
+	url = https://github.com/microsoft/GSL.git
