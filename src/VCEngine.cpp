@@ -6,9 +6,9 @@
 #include <bits/stdint-uintn.h>
 #include <map>
 #include <set>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan.hpp>
-#include <string_view>
 
 #include "Setup.hpp"
 #include "VCEngine.hpp"
@@ -25,12 +25,13 @@ using namespace vcc;
 namespace {
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
-debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
               VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
               void* pUserData)
 {
-  std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+  if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 
   return VK_FALSE;
 }

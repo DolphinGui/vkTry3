@@ -506,7 +506,7 @@ Setup::Setup(VCEngine& engine)
       engine.device.getQueue(0, env.queueIndices.presentFamily.value()))
   , transferQueue(
       engine.device.getQueue(0, env.queueIndices.transferFamily.value()))
-  , color(ImageBundle::create(
+  , color(
       vk::ImageCreateInfo({}, // createFlags
                           vk::ImageType::e2D,
                           swapChainImageFormat.format,
@@ -520,8 +520,8 @@ Setup::Setup(VCEngine& engine)
                           vk::SharingMode::eExclusive),
       allocationInfo,
       env,
-      vk::ImageAspectFlagBits::eColor))
-  , depth(ImageBundle::create(
+      vk::ImageAspectFlagBits::eColor)
+  , depth(
       vk::ImageCreateInfo(
         {}, // createFlags
         vk::ImageType::e2D,
@@ -540,7 +540,7 @@ Setup::Setup(VCEngine& engine)
         vk::SharingMode::eExclusive),
       allocationInfo,
       env,
-      vk::ImageAspectFlagBits::eDepth))
+      vk::ImageAspectFlagBits::eDepth)
   , swapChainFramebuffers(createFramebuffers(env.device,
                                              swapChainExtent,
                                              color,

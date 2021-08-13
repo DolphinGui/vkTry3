@@ -10,7 +10,6 @@
 #include <array>
 #include <unordered_map>
 #include <vulkan/vulkan.hpp>
-
 struct Vertex
 {
   glm::vec3 pos;

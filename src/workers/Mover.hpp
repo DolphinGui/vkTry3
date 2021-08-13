@@ -33,23 +33,30 @@ public:
   struct MoveJob
   {
     vk::CommandBufferUsageFlags usage;
-    std::function<void(vk::CommandBuffer)> exec;vk::
-    Fence signal;
+    std::function<void(vk::CommandBuffer)> exec;
   };
 
-  void submit(MoveJob&& job);
+  inline bool submit(MoveJob&& job) noexcept
+  {
+    return recordJobs.enqueue(std::move(job));
+  };
+  inline void wait(
+    uint64_t timeout = std::numeric_limits<uint64_t>::max()) noexcept
+  {
+    if (busy.load(std::memory_order_relaxed))
+      std::lock_guard<std::mutex> lock(done);
+  };
 
 private:
   const vk::Device& device;
   const vk::Queue& transferQueue;
   std::thread thread;
   vk::CommandPool pool;
-  std::vector<vk::CommandBuffer> buffers;
   moodycamel::BlockingConcurrentQueue<MoveJob> recordJobs;
+  std::mutex done{};
+  std::atomic_bool busy{};
   std::atomic_bool alive;
-  std::mutex living;
 
-  void record(MoveJob& job, vk::CommandBuffer);
   void doStuff();
 };
 }

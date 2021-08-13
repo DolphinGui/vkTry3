@@ -1,6 +1,8 @@
 #include <GLFW/glfw3.h>
+#include <cstring>
 #include <iterator>
 #include <stdexcept>
+#include <tuple>
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_enums.hpp>
 #include <vulkan/vulkan_structs.hpp>
@@ -9,11 +11,16 @@
 #include "VCEngine.hpp"
 using namespace vcc;
 
-ImageBundle
-ImageBundle::create(const vk::ImageCreateInfo& imageInfo,
-                    const VmaAllocationCreateInfo& allocInfo,
-                    const VCEngine& env,
-                    vk::ImageAspectFlags viewAspectFlags)
+namespace {
+std::tuple<vk::Image,
+           VmaAllocation,
+           vk::ImageView,
+           vk::Device,
+           const VmaAllocator&>
+function(const vk::ImageCreateInfo& imageInfo,
+         const VmaAllocationCreateInfo& allocInfo,
+         const VCEngine& env,
+         vk::ImageAspectFlags viewAspectFlags)
 {
   vk::Image image;
   VmaAllocation alloc;
@@ -23,7 +30,7 @@ ImageBundle::create(const vk::ImageCreateInfo& imageInfo,
                  reinterpret_cast<VkImage*>(&image),
                  &alloc,
                  nullptr);
-    vk::ImageView view{};
+  vk::ImageView view{};
 
   if (viewAspectFlags) {
     view = env.device.createImageView(vk::ImageViewCreateInfo(
@@ -35,20 +42,41 @@ ImageBundle::create(const vk::ImageCreateInfo& imageInfo,
       vk::ImageSubresourceRange(
         viewAspectFlags, 0, imageInfo.mipLevels, 0, 1)));
   }
-  return {image, alloc, view, env.device, env.vmaAlloc};
+  return { image, alloc, view, env.device, env.vmaAlloc };
 }
+}
+
+ImageBundle::ImageBundle(const vk::ImageCreateInfo& imageInfo,
+                         const VmaAllocationCreateInfo& allocInfo,
+                         const VCEngine& env,
+                         vk::ImageAspectFlags viewAspectFlags)
+  : ImageBundle(std::make_from_tuple<ImageBundle>(
+      function(imageInfo, allocInfo, env, viewAspectFlags)))
+{}
 
 ImageBundle::ImageBundle(vk::Image image,
                          VmaAllocation alloc,
                          vk::ImageView view,
                          vk::Device device,
-                         const VmaAllocator& allocator)
+                         const VmaAllocator allocator)
   : image(image)
   , mem(alloc)
   , view(view)
   , dev(device)
   , alloc(allocator)
 {}
+
+ImageBundle::ImageBundle(ImageBundle&& other) noexcept
+  : image{ other.image }
+  , mem{ other.mem }
+  , view{ other.view }
+  , dev{ other.dev }
+  , alloc{ other.alloc }
+{
+  other.image = nullptr;
+  other.mem = nullptr;
+  other.view = nullptr;
+}
 
 ImageBundle::~ImageBundle()
 {

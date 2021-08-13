@@ -1,35 +1,37 @@
 #include "Task.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <tuple>
+#include <utility>
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_enums.hpp>
 
 #include "Setup.hpp"
-#include "vk_mem_alloc.h"
 #include "jobs/RecordJob.hpp"
+#include "vk_mem_alloc.h"
 #include "vkobjects/BufferBundle.hpp"
 #include "vkobjects/ImageBundle.hpp"
 
 using namespace vcc;
 
 namespace {
-std::pair<vk::Buffer, VmaAllocation>
-stageAndLoad(VmaAllocator vmaAlloc, const void* const data, size_t size)
+vcc::BufferBundle
+stageAndLoad(VmaAllocator vmaAlloc,
+             const void* const data,
+             size_t size) noexcept
 {
-  VkBuffer staging;
-  VmaAllocation alloc;
-  VkBufferCreateInfo bufferCreate(
+  vk::BufferCreateInfo bufferCreate(
     vk::BufferCreateInfo({}, size, vk::BufferUsageFlagBits::eTransferSrc));
   VmaAllocationCreateInfo allocCreate{};
   allocCreate.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-  vmaCreateBuffer(
-    vmaAlloc, &bufferCreate, &allocCreate, &staging, &alloc, nullptr);
-  void* buffer;
-  vmaMapMemory(vmaAlloc, alloc, &buffer);
-  memcpy(buffer, data, size);
-  vmaUnmapMemory(vmaAlloc, alloc);
-  return { staging, alloc };
+  vcc::BufferBundle stage(bufferCreate, allocCreate, vmaAlloc);
+  void* buffer{};
+  auto result = vmaMapMemory(vmaAlloc, stage.mem, &buffer);
+  std::memcpy(buffer, data, size);
+  vmaUnmapMemory(vmaAlloc, stage.mem);
+  return stage;
 }
 void
 transitionImageLayout(vk::Image image,
@@ -94,7 +96,21 @@ Task::Task(Setup& s, VCEngine& e)
           e.queueIndices.graphicsFamily.value())
 {}
 
-Task::~Task() {}
+Task::~Task() = default;
+
+typedef uint32_t (*mipFunct)(vk::Extent2D extent);
+
+constexpr mipFunct
+mip(vk::SampleCountFlags msaa)
+{
+  if (msaa != vk::SampleCountFlagBits::e1)
+    return [](vk::Extent2D extent) -> uint32_t { return 1; };
+  return [](vk::Extent2D extent) -> uint32_t {
+    return static_cast<uint32_t>(
+             std::floor(std::log2(std::max(extent.width, extent.height)))) +
+           1;
+  };
+}
 
 void
 Task::run(const stbi_uc* const textureData,
@@ -107,15 +123,13 @@ Task::run(const stbi_uc* const textureData,
   VmaAllocationCreateInfo textureCreate{};
   textureCreate.usage = VMA_MEMORY_USAGE_GPU_ONLY;
   textureCreate.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-  uint32_t mipLevels =
-    static_cast<uint32_t>(
-      std::floor(std::log2(std::max(imageSize.width, imageSize.height)))) +
-    1;
 
-  vk::ImageCreateInfo imageInfo({},
+  uint32_t mipLevels = mip(engine.msaaSamples)(imageSize);
+
+  vk::ImageCreateInfo imageInfo({}, // imagecreateflags
                                 vk::ImageType::e2D,
                                 vk::Format::eR8G8B8A8Srgb,
-                                {imageSize.width, imageSize.height, 1},
+                                { imageSize.width, imageSize.height, 1 },
                                 mipLevels,
                                 1,
                                 engine.msaaSamples,
@@ -125,13 +139,12 @@ Task::run(const stbi_uc* const textureData,
                                   vk::ImageUsageFlagBits::eSampled,
                                 vk::SharingMode::eExclusive);
 
-  ImageBundle tex(ImageBundle::create(imageInfo, textureCreate, engine));
+  ImageBundle tex(ImageBundle(imageInfo, textureCreate, engine));
   loadImage(textureData,
             bSize,
             imageSize,
             mipLevels,
             vk::Format::eR8G8B8A8Srgb,
-            nullptr,
             tex.image);
 
   vk::BufferCreateInfo meshInfo{};
@@ -139,46 +152,51 @@ Task::run(const stbi_uc* const textureData,
   meshInfo.usage = vk::BufferUsageFlagBits::eTransferDst |
                    vk::BufferUsageFlagBits::eVertexBuffer;
   meshInfo.sharingMode = vk::SharingMode::eExclusive;
-  VmaAllocationCreateInfo meshCreate{};
-  meshCreate.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+  VmaAllocationCreateInfo meshAlloc{};
+  meshAlloc.usage = VMA_MEMORY_USAGE_GPU_ONLY;
   textureCreate.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-  BufferBundle vertex(meshInfo, meshCreate, engine.vmaAlloc);
-  loadBuffer(&verticies, meshInfo.size, engine.device, vertex.buffer);
+  BufferBundle vertex(meshInfo, meshAlloc, engine.vmaAlloc);
+  loadBuffer(verticies.data(), meshInfo.size, vertex.buffer);
+
   meshInfo.size = sizeof(indicies[0]) * indicies.size();
   meshInfo.usage = vk::BufferUsageFlagBits::eTransferDst |
                    vk::BufferUsageFlagBits::eIndexBuffer;
-  BufferBundle index(meshInfo, meshCreate, engine.vmaAlloc);
+  BufferBundle index(meshInfo, meshAlloc, engine.vmaAlloc);
+  loadBuffer(indicies.data(), meshInfo.size, index.buffer);
+  mover.wait();
 }
-vk::Fence
-Task::loadBuffer(const void* const data,
-                 size_t size,
-                 vk::Device fence,
-                 vk::Buffer& out)
+std::future<BufferBundle>
+Task::loadBuffer(const void* const data, size_t size, BufferBundle&& out)
 {
-  std::pair<vk::Buffer, VmaAllocation> stage(
-    stageAndLoad(engine.vmaAlloc, data, size));
-  mover.submit(Mover::MoveJob{
+  vcc::BufferBundle stage(stageAndLoad(engine.vmaAlloc, data, size));
+  /*This lambda capture holds 4 pointers and 1 size_t.
+    Becuase std::function cannot move for some reason.
+    Should probably figure out a way to get around mallocing.
+    the max size gcc doesn't malloc is 2 pointers.*/
+  std::promise<BufferBundle> promise;
+  auto r = mover.submit(Mover::MoveJob{
     vk::CommandBufferUsageFlagBits::eOneTimeSubmit,
-    [out, size, stage](vk::CommandBuffer cmd) {
-      cmd.copyBuffer(stage.first, out, vk::BufferCopy(0, 0, size));
+    [auto 
+      outBuffer = out.buffer,
+     size,
+     args = std::tuple_cat(stage.release(), std::make_tuple(stage.alloc))](
+      vk::CommandBuffer cmd) mutable {
+      BufferBundle buffer = std::make_from_tuple<BufferBundle>(args);
+      cmd.copyBuffer(buffer.buffer, outBuffer, vk::BufferCopy(0, 0, size));
     } });
-  vmaDestroyBuffer(engine.vmaAlloc, stage.first, stage.second);
-  return fence.createFence(vk::FenceCreateInfo());
+
+  return;
 }
 
 // Formats the image using a memory barrier.
-vk::Fence
+std::future<ImageBundle>
 Task::loadImage(const void* const data,
                 size_t size,
                 vk::Extent2D imageDimensions,
                 uint32_t mipLevels,
                 vk::Format format,
-                vk::Device fence,
-                vk::Image& out)
+                ImageBundle&& out)
 {
-  std::pair<vk::Buffer, VmaAllocation> stage(
-    stageAndLoad(engine.vmaAlloc, data, size));
-
-  vmaDestroyBuffer(engine.vmaAlloc, stage.first, stage.second);
-  return fence.createFence(vk::FenceCreateInfo());
+  vcc::BufferBundle stage(stageAndLoad(engine.vmaAlloc, data, size));
+  return;
 }

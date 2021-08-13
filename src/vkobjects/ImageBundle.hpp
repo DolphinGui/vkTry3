@@ -2,6 +2,7 @@
 
 #include <GLFW/glfw3.h>
 #include <stdexcept>
+#include <tuple>
 #include <vulkan/vulkan.hpp>
 
 #include "VCEngine.hpp"
@@ -12,27 +13,37 @@ namespace vcc {
 class ImageBundle
 {
 public:
-  vk::Image image;
-  VmaAllocation mem;
-  vk::ImageView view;
   ~ImageBundle();
+  ImageBundle(const ImageBundle&) = delete;
+  ImageBundle(ImageBundle&&) noexcept;
 
-  static ImageBundle create(const vk::ImageCreateInfo&,
-                            const VmaAllocationCreateInfo&,
-                            const VCEngine& env,
-                            vk::ImageAspectFlags viewAspectFlags = {});
-  static uint32_t findMemoryType(uint32_t typeFilter,
-                                 vk::MemoryPropertyFlags properties,
-                                 const vk::PhysicalDevice& physicalDevice);
-
-private:
+  ImageBundle(const vk::ImageCreateInfo&,
+              const VmaAllocationCreateInfo&,
+              const VCEngine& env,
+              vk::ImageAspectFlags viewAspectFlags = {});
   ImageBundle(vk::Image,
               VmaAllocation,
               vk::ImageView,
               vk::Device,
-              const VmaAllocator&);
-  const vk::Device dev;
-  const VmaAllocator& alloc;
+              const VmaAllocator);
+  auto release() noexcept
+  {
+    auto result = std::make_tuple(image, mem, view, dev, alloc);
+    image = nullptr;
+    mem = nullptr;
+    view = nullptr;
+    return result;
+  };
+  static uint32_t findMemoryType(uint32_t typeFilter,
+                                 vk::MemoryPropertyFlags properties,
+                                 const vk::PhysicalDevice& physicalDevice);
+
+  vk::Image image;
+  VmaAllocation mem;
+  vk::ImageView view;
+
+private:
+  vk::Device dev;     // non-owning
+  VmaAllocator alloc; // non-owning
 };
 }
-

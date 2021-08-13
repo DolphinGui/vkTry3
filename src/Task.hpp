@@ -2,17 +2,19 @@
 #include <atomic>
 #include <bits/stdint-uintn.h>
 #include <cstddef>
+#include <future>
 #include <stb/stb_image.h>
 #include <utility>
 #include <vector>
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_handles.hpp>
 
 #include "data/UniformBufferObject.hpp"
 #include "data/Vertex.hpp"
 #include "vkobjects/BufferBundle.hpp"
 #include "vkobjects/ImageBundle.hpp"
-#include "workers/RenderGroup.hpp"
 #include "workers/Mover.hpp"
+#include "workers/RenderGroup.hpp"
 
 namespace vcc {
 class Setup;
@@ -37,16 +39,14 @@ private:
 
   std::atomic_flag resized;
 
-  vk::Fence loadBuffer(const void* const data,
-                       size_t,
-                       vk::Device fence,
-                       vk::Buffer& out);
-  vk::Fence loadImage(const void* const data,
-                      size_t,
-                      vk::Extent2D,
-                      uint32_t mipLevels,
-                      vk::Format,
-                      vk::Device fence,
-                      vk::Image& out);
+  /* technically the idiomatic way to do this is something with std::future, but
+  I couldn't figure out how to do it efficiently.*/
+  std::future<BufferBundle> loadBuffer(const void* const data, size_t, BufferBundle&& out);
+    std::future<ImageBundle> loadImage(const void* const data,
+                 size_t,
+                 vk::Extent2D,
+                 uint32_t mipLevels,
+                 vk::Format,
+                 ImageBundle&& out);
 };
 }

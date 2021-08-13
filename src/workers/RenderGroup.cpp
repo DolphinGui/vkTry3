@@ -56,7 +56,7 @@ RenderGroup::RenderGroup(const vcc::VCEngine& engine,
   // probably with template metaprogramming jank
   , workers{ Worker(device,
                     graphics,
-                    1,
+                    0,
                     engine.queueIndices.graphicsFamily.value(),
                     jobquery,
                     submitquery,
